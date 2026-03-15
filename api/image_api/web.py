@@ -14,7 +14,11 @@ from .worker import Sizes, resize_image
 
 # Create the bucket if it does not exist
 if bucket.creation_date is None:
-    bucket.create()
+    try:
+        bucket.create()
+    except ClientError as e:
+        if e.response["Error"]["Code"] != "BucketAlreadyOwnedByYou":
+            raise
 
 app = Flask(__name__)
 FlaskInstrumentor().instrument_app(app)  # type: ignore[no-untyped-call]

@@ -1,0 +1,28 @@
+FROM node:24-alpine AS build
+
+WORKDIR /app
+
+COPY web/package.json web/package-lock.json ./
+RUN npm ci
+
+COPY web/ .
+RUN npm run build
+
+
+FROM nginx:alpine
+
+COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=build /app/dist /usr/share/nginx/html
+
+EXPOSE 80
+CMD ["nginx", "-g", "daemon off;"]
+
+#pour rapport
+# npm ci instead of npm install? npm ci is for CI/production: 
+    #it installs exactly what's in package-lock.json (reproducible), is faster, a
+    #nd deletes any existing node_modules first. npm install can update the lockfile, 
+    #which you don't want in a build.
+
+#copy package.json + lockfile first? Same Docker cache trick: dependencies 
+#change rarely, code changes often. If only .tsx files change, the npm ci layer is cached.
+

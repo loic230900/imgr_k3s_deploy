@@ -1,0 +1,38 @@
+# base partagée entre backend et worker 
+
+#slim, car enelve doc compilateurs etc non necessaire au runtime
+FROM python:3.12-slim AS base
+
+WORKDIR /app
+
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+
+COPY api/ .
+
+RUN uv sync --no-dev --locked && \
+    uv pip install gunicorn && \
+    groupadd -r appuser && useradd -r -m -g appuser appuser && \
+    chown -R appuser:appuser /app
+
+USER appuser
+
+#backend target run le serv Flask
+
+FROM base AS backend
+
+EXPOSE 8080
+
+USER root
+RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
+USER appuser
+
+HEALTHCHECK --interval=10s --timeout=3s --retries=3 \
+  CMD curl -f http://localhost:8080/health || exit 1
+
+CMD ["uv", "run", "--no-dev", "gunicorn", "--workers", "4", "--bind", "0.0.0.0:8080", "image_api.web:app"]
+
+
+# worker target run Celery
+FROM base AS worker
+
+CMD ["uv", "run", "--no-dev", "celery", "--app", "image_api.worker:app","worker", "--loglevel=info"]
