@@ -1,0 +1,30 @@
+- name: Base setup on all nodes
+  hosts: k3s
+  become: true
+  roles:
+    - common
+
+- name: Configure keepalived on all nodes
+  hosts: k3s
+  become: true
+  roles:
+    - keepalived
+
+- name: Initialize K3s cluster (first server)
+  hosts: init
+  become: true
+  roles:
+    - k3s_init
+
+- name: Join remaining servers to cluster
+  hosts: join
+  become: true
+  serial: 1 
+  roles:
+    - k3s_join
+
+- name: Deploy application
+  hosts: init
+  become: true
+  roles:
+    - app

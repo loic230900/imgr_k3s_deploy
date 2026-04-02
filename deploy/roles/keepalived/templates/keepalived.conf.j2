@@ -1,0 +1,16 @@
+vrrp_instance VI_1 {
+    state {{ 'MASTER' if inventory_hostname == 'vm1' else 'BACKUP' }}
+    interface {{ vxlan_iface.stdout }}
+    virtual_router_id 51
+    priority {{ keepalived_priority }}
+    advert_int 1
+
+    authentication {
+        auth_type PASS
+        auth_pass imgr_ha
+    }
+
+    virtual_ipaddress {
+        {{ floating_ip }}/24
+    }
+}

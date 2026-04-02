@@ -18,11 +18,20 @@ spec:
       labels:
         app: frontend
     spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app: frontend
+                topologyKey: kubernetes.io/hostname
       imagePullSecrets:
         - name: registry-creds
       containers:
         - name: frontend
-          image: git.unistra.fr:5050/waltzing/projet-cloud-virt/frontend:v1
+          image: registry.app.unistra.fr/waltzing/projet-cloud-virt/frontend:v1
           ports:
             - containerPort: 80
           readinessProbe:

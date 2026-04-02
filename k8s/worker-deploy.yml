@@ -18,11 +18,20 @@ spec:
       labels:
         app: worker
     spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app: worker
+                topologyKey: kubernetes.io/hostname
       imagePullSecrets:
         - name: registry-creds
       containers:
         - name: worker
-          image: git.unistra.fr:5050/waltzing/projet-cloud-virt/worker:v1
+          image: registry.app.unistra.fr/waltzing/projet-cloud-virt/worker:v1
           envFrom:
             - secretRef:
                 name: imgr-secrets

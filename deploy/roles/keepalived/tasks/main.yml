@@ -1,0 +1,22 @@
+- name:  Install keepalived
+  apt:
+    name: keepalived
+    state: present
+
+- name: Detect VXLAN interface
+  shell: ip -o addr show | grep '{{ vxlan_network }}\.' | awk '{print $2}'
+  register: vxlan_iface
+  changed_when: false
+
+- name: Deploy keepalived config
+  template:
+    src: keepalived.conf.j2
+    dest: /etc/keepalived/keepalived.conf
+    mode: "0644"
+  notify: Restart keepalived
+
+- name: Ensure keepalived is running
+  systemd:
+    name: keepalived
+    state: started
+    enabled: true

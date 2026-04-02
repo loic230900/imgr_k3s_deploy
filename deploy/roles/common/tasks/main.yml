@@ -1,0 +1,69 @@
+- name: Update apt cache
+  apt:
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Install required packages
+  apt:
+    name:
+      - curl
+      - apt-transport-https
+    state: present
+
+- name: Allow SSH
+  ufw:
+    rule: allow
+    port: "22"
+    proto: tcp
+
+- name: Allow K3s API server
+  ufw:
+    rule: allow
+    port: "6443"
+    proto: tcp
+
+- name: Allow Kubelet metrics
+  ufw:
+    rule: allow
+    port: "10250"
+    proto: tcp
+
+- name: Allow etcd peer communication (HA)
+  ufw:
+    rule: allow
+    port: "2379:2380"
+    proto: tcp
+
+- name: Allow Flannel VXLAN overlay
+  ufw:
+    rule: allow
+    port: "8472"
+    proto: udp
+
+- name: Allow Backend NodePort
+  ufw:
+    rule: allow
+    port: "8080"
+    proto: tcp
+
+- name: Allow Frontend NodePort
+  ufw:
+    rule: allow
+    port: "8081"
+    proto: tcp
+
+- name: Allow VRRP protocol (keepalived)
+  ufw:
+    rule: allow
+    proto: vrrp
+
+- name: Allow all traffic from VXLAN network
+  ufw:
+    rule: allow
+    from_ip: "{{ vxlan_network }}.0/24"
+
+- name: Enable UFW with default deny
+  ufw:
+    state: enabled
+    policy: deny
+    direction: incoming
