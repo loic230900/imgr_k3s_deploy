@@ -64,5 +64,8 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile.web
-    ports:
+    ports:ssh vm1 'ip -o -4 addr show | grep 192.168.27'
+
       - "3000:80"
+    volumes:
+      - ./web/public/config.local.json:/usr/share/nginx/html/config.json:ro
