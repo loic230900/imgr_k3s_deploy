@@ -1,0 +1,58 @@
+- name: Create k8s manifests directory
+  file:
+    path: /home/ubuntu/k8s
+    state: directory
+    owner: ubuntu
+    group: ubuntu
+    mode: "0700"
+
+- name: Copy k8s manifests to server
+  copy:
+    src: "{{ item }}"
+    dest: /home/ubuntu/k8s/
+    owner: ubuntu
+    group: ubuntu
+    mode: "0600"
+  loop: "{{ lookup('fileglob', playbook_dir + '/../k8s/*.yml', wantlist=True) }}"
+
+- name: Template application secrets
+  template:
+    src: "{{ playbook_dir }}/templates/k8s-secret.yml.j2"
+    dest: /home/ubuntu/k8s/secret.yml
+    owner: ubuntu
+    group: ubuntu
+    mode: "0600"
+
+- name: Create imgr namespace
+  command: k3s kubectl apply -f /home/ubuntu/k8s/namespace.yml
+
+- name: Create image pull secret (registry-creds)
+  shell: |
+    k3s kubectl -n imgr create secret docker-registry registry-creds \
+      --docker-server={{ registry_server }} \
+      --docker-username={{ registry_username }} \
+      --docker-password={{ registry_password }} \
+      --dry-run=client -o yaml | k3s kubectl apply -f -
+
+- name: Apply application secrets
+  command: k3s kubectl apply -f /home/ubuntu/k8s/secret.yml
+
+- name: Apply all k8s manifests
+  shell: k3s kubectl apply -f /home/ubuntu/k8s/
+
+- name: Wait for backend rollout
+  command: k3s kubectl -n imgr rollout status deployment/backend --timeout=120s
+  changed_when: false
+
+- name: Wait for worker rollout
+  command: k3s kubectl -n imgr rollout status deployment/worker --timeout=120s
+  changed_when: false
+
+- name: Wait for frontend rollout
+  command: k3s kubectl -n imgr rollout status deployment/frontend --timeout=120s
+  changed_when: false
+
+- name: Clean up secret file from disk
+  file:
+    path: /home/ubuntu/k8s/secret.yml
+    state: absent
