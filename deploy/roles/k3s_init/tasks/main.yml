@@ -4,7 +4,7 @@
   register: k3s_binary
 
 - name: Detect VXLAN interface
-  shell: ip -o addr show | grep '{{ vxlan_network }}\.' | awk '{print $2}'
+  shell: ip -o addr show | grep '{{ vxlan_network }}\.' | awk '{print $2}' | head -1
   register: vxlan_iface
   changed_when: false
 
@@ -20,6 +20,7 @@
       --disable=traefik \
       --tls-san={{ floating_ip }} \
       --flannel-iface={{ vxlan_iface.stdout }} \
+      --node-ip={{ k3s_server_ip }} \
       --service-node-port-range=8000-32767
   when: not k3s_binary.stat.exists
 
