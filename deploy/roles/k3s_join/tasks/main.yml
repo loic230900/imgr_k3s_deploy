@@ -15,7 +15,7 @@
 
 - name: Join K3s cluster as server
   shell: |
-    curl -sfl https://get.k3s.io | K3S_URL="https://{{ k3s_server_ip }}:6443" \
+    curl -sfL https://get.k3s.io | K3S_URL="https://{{ k3s_server_ip }}:6443" \
       K3S_TOKEN="{{ hostvars['vm1'].k3s_token }}" \
       INSTALL_K3S_EXEC="server" sh -s - \
       --disable=traefik \
