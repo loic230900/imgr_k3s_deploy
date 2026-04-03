@@ -29,7 +29,7 @@ USER appuser
 HEALTHCHECK --interval=10s --timeout=3s --retries=3 \
   CMD curl -f http://localhost:8080/health || exit 1
 
-CMD ["uv", "run", "--no-dev", "gunicorn", "--workers", "4", "--bind", "0.0.0.0:8080", "image_api.web:app"]
+CMD ["uv", "run", "--no-dev", "gunicorn", "--workers", "2", "--bind", "0.0.0.0:8080", "image_api.web:app"]
 
 
 # worker target run Celery

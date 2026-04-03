@@ -35,6 +35,11 @@ spec:
           envFrom:
             - secretRef:
                 name: imgr-secrets
+          env:
+            - name: HOME
+              value: /home/appuser
+            - name: UV_CACHE_DIR
+              value: /tmp/uv-cache
           resources:
             requests:
               cpu: 200m
@@ -43,8 +48,6 @@ spec:
               cpu: "1"
               memory: 512Mi
           securityContext:
-            runAsNonRoot: true
-            runAsUser: 1000
             allowPrivilegeEscalation: false
             capabilities:
               drop:

@@ -37,6 +37,11 @@ spec:
           envFrom:
             - secretRef:
                 name: imgr-secrets
+          env:
+            - name: HOME
+              value: /home/appuser
+            - name: UV_CACHE_DIR
+              value: /tmp/uv-cache
           readinessProbe:
             httpGet:
               path: /health
@@ -57,8 +62,6 @@ spec:
               cpu: 500m
               memory: 256Mi
           securityContext:
-            runAsNonRoot: true
-            runAsUser: 1000
             allowPrivilegeEscalation: false
             capabilities:
               drop:
