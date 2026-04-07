@@ -3,10 +3,11 @@ from urllib.parse import unquote
 
 from botocore.exceptions import ClientError
 from celery.canvas import group
-from flask import Flask, Response, request, url_for
+from flask import Flask, Response, redirect, request, url_for
 from flask.typing import ResponseReturnValue
 from flask_cors import CORS
 from opentelemetry.instrumentation.flask import FlaskInstrumentor
+import config
 
 from .storage import bucket, s3
 from .utils import random_id, valid_id
@@ -75,7 +76,27 @@ def stream_image(id: str, size: Sizes) -> Response | tuple[str, int]:
     # Fail fast if the ID does not have the right shape
     if not valid_id(id):
         return "invalid id", 400
+    
+    # key variable calcule une fois
+    key = f"{size.segment}/{id}"
+    
+    #production: redirect le client vers S3
+    if config.s3["endpoint_url"] is None:
+        try:
+            bucket.Object(key).load()
+        except ClientError as ex:
+            code = ex.response.get("Error", {}).get("Code", "")
+            if code in ("404", "NoSuchKey"):
+                return "not found", 404
+            raise
+        url = s3.meta.client.generate_presigned_url(
+            "get_object",
+            Params={"Bucket": config.bucket_name, "Key":key},
+            ExpiresIn=3600,
+        )
+        return redirect(url)
 
+    #local_dev
     # Forward the If-None-Match and If-Modified-Since headers
     args = {}
     if_none_match = request.headers.get("If-None-Match")
