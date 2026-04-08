@@ -31,4 +31,27 @@
   retries: 30
   delay: 5
   until: k3s_ready.rc == 0
-  changed_when: false      
+  changed_when: false
+
+- name: Create .kube directory for ubuntu user
+  file:
+    path: /home/ubuntu/.kube
+    state: directory
+    owner: ubuntu
+    group: ubuntu
+    mode: "0700"
+
+- name: Copy kubeconfig for ubuntu user
+  copy:
+    src: /etc/rancher/k3s/k3s.yaml
+    dest: /home/ubuntu/.kube/config
+    remote_src: true
+    owner: ubuntu
+    group: ubuntu
+    mode: "0600"
+
+- name: Update kubeconfig server address to floating IP
+  replace:
+    path: /home/ubuntu/.kube/config
+    regexp: 'https://127\.0\.0\.1:6443'
+    replace: 'https://{{ floating_ip }}:6443'
