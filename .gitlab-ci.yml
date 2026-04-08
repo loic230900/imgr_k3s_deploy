@@ -8,45 +8,53 @@ variables:
 
 build-backend:
   stage: build
-  image: docker:latest
-  services:
-    - docker:dind #Docker in Docker pour construire l'image
+  image:
+    name: gcr.io/kaniko-project/executor:v1.23.2-debug
+    entrypoint: [""]
   only:
     - main
   script:
-    - echo "REGISTRY_USER is set to [$REGISTRY_USER]"
-    - echo "REGISTRY_PASSWORD length is $(echo -n $REGISTRY_PASSWORD | wc -c)"
-    - echo "$REGISTRY_PASSWORD" | docker login -u "$REGISTRY_USER" --password-stdin "$REGISTRY"
-
-    - docker build -f docker/Dockerfile.api --target backend -t $IMAGE_BASE/backend:$CI_COMMIT_SHORT_SHA -t $IMAGE_BASE/backend:latest .
-    - docker push $IMAGE_BASE/backend:$CI_COMMIT_SHORT_SHA
-    - docker push $IMAGE_BASE/backend:latest
+    - mkdir -p /kaniko/.docker
+    - echo "{\"auths\":{\"${REGISTRY}\":{\"auth\":\"$(printf '%s:%s' "${REGISTRY_USER}" "${REGISTRY_PASSWORD}" | base64 | tr -d '\n')\"}}}" > /kaniko/.docker/config.json
+    - /kaniko/executor
+      --context "${CI_PROJECT_DIR}"
+      --dockerfile "${CI_PROJECT_DIR}/docker/Dockerfile.api"
+      --target backend
+      --destination "${IMAGE_BASE}/backend:${CI_COMMIT_SHORT_SHA}"
+      --destination "${IMAGE_BASE}/backend:latest"
 
 build-worker:
   stage: build
-  image: docker:latest
-  services:
-    - docker:dind
+  image:
+    name: gcr.io/kaniko-project/executor:v1.23.2-debug
+    entrypoint: [""]
   only:
     - main
   script:
-    - docker login -u $REGISTRY_USER -p $REGISTRY_PASSWORD $REGISTRY
-    - docker build -f docker/Dockerfile.api --target worker -t $IMAGE_BASE/worker:$CI_COMMIT_SHORT_SHA -t $IMAGE_BASE/worker:latest .
-    - docker push $IMAGE_BASE/worker:$CI_COMMIT_SHORT_SHA
-    - docker push $IMAGE_BASE/worker:latest
+    - mkdir -p /kaniko/.docker
+    - echo "{\"auths\":{\"${REGISTRY}\":{\"auth\":\"$(printf '%s:%s' "${REGISTRY_USER}" "${REGISTRY_PASSWORD}" | base64 | tr -d '\n')\"}}}" > /kaniko/.docker/config.json
+    - /kaniko/executor
+      --context "${CI_PROJECT_DIR}"
+      --dockerfile "${CI_PROJECT_DIR}/docker/Dockerfile.api"
+      --target worker
+      --destination "${IMAGE_BASE}/worker:${CI_COMMIT_SHORT_SHA}"
+      --destination "${IMAGE_BASE}/worker:latest"
 
 build-frontend:
   stage: build
-  image: docker:latest
-  services:
-    - docker:dind
+  image:
+    name: gcr.io/kaniko-project/executor:v1.23.2-debug
+    entrypoint: [""]
   only:
     - main
   script:
-    - docker login -u $REGISTRY_USER -p $REGISTRY_PASSWORD $REGISTRY
-    - docker build -f docker/Dockerfile.web -t $IMAGE_BASE/frontend:$CI_COMMIT_SHORT_SHA -t $IMAGE_BASE/frontend:latest .
-    - docker push $IMAGE_BASE/frontend:$CI_COMMIT_SHORT_SHA
-    - docker push $IMAGE_BASE/frontend:latest
+    - mkdir -p /kaniko/.docker
+    - echo "{\"auths\":{\"${REGISTRY}\":{\"auth\":\"$(printf '%s:%s' "${REGISTRY_USER}" "${REGISTRY_PASSWORD}" | base64 | tr -d '\n')\"}}}" > /kaniko/.docker/config.json
+    - /kaniko/executor
+      --context "${CI_PROJECT_DIR}"
+      --dockerfile "${CI_PROJECT_DIR}/docker/Dockerfile.web"
+      --destination "${IMAGE_BASE}/frontend:${CI_COMMIT_SHORT_SHA}"
+      --destination "${IMAGE_BASE}/frontend:latest"
 
 deploy:
   stage: deploy
