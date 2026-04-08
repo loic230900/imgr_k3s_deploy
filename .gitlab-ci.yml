@@ -69,10 +69,9 @@ deploy:
     - ssh-keyscan -H bastion.maurice-cloud.fr >> ~/.ssh/known_hosts 2>/dev/null
     - |
       DEPLOY_CMD="export KUBECONFIG=/home/ubuntu/.kube/config && \
-        kubectl -n imgr set image \
-        deployment/backend backend=$IMAGE_BASE/backend:$CI_COMMIT_SHORT_SHA \
-        deployment/worker worker=$IMAGE_BASE/worker:$CI_COMMIT_SHORT_SHA \
-        deployment/frontend frontend=$IMAGE_BASE/frontend:$CI_COMMIT_SHORT_SHA && \
+        kubectl -n imgr set image deployment/backend backend=$IMAGE_BASE/backend:$CI_COMMIT_SHORT_SHA && \
+        kubectl -n imgr set image deployment/worker worker=$IMAGE_BASE/worker:$CI_COMMIT_SHORT_SHA && \
+        kubectl -n imgr set image deployment/frontend frontend=$IMAGE_BASE/frontend:$CI_COMMIT_SHORT_SHA && \
         kubectl -n imgr rollout status deployment/backend --timeout=120s && \
         kubectl -n imgr rollout status deployment/worker --timeout=120s && \
         kubectl -n imgr rollout status deployment/frontend --timeout=120s"
