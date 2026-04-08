@@ -76,7 +76,7 @@ deploy:
         kubectl -n imgr rollout status deployment/worker --timeout=120s && \
         kubectl -n imgr rollout status deployment/frontend --timeout=120s"
 
-      for VM in vm1 vm2 vm3; do
+      for VM in vm1.waltzing.internal.maurice-cloud.fr vm2.waltzing.internal.maurice-cloud.fr vm3.waltzing.internal.maurice-cloud.fr; do
         echo "Trying $VM..."
         if ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 \
               -o ProxyJump=student@bastion.maurice-cloud.fr \
