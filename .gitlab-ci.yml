@@ -14,7 +14,10 @@ build-backend:
   only:
     - main
   script:
-    - docker login -u $REGISTRY_USER -p $REGISTRY_PASSWORD $REGISTRY
+    - echo "REGISTRY_USER is set to [$REGISTRY_USER]"
+    - echo "REGISTRY_PASSWORD length is $(echo -n $REGISTRY_PASSWORD | wc -c)"
+    - echo "$REGISTRY_PASSWORD" | docker login -u "$REGISTRY_USER" --password-stdin "$REGISTRY"
+
     - docker build -f docker/Dockerfile.api --target backend -t $IMAGE_BASE/backend:$CI_COMMIT_SHORT_SHA -t $IMAGE_BASE/backend:latest .
     - docker push $IMAGE_BASE/backend:$CI_COMMIT_SHORT_SHA
     - docker push $IMAGE_BASE/backend:latest
