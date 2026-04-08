@@ -77,4 +77,3 @@ deploy:
       done
       echo "All nodes unreachable"
       exit 1
-xit 1
