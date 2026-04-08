@@ -10,7 +10,7 @@ build-backend:
   stage: build
   image: docker:latest
   services:
-    docker:dind #Docker in Docker pour construire l'image
+    - docker:dind #Docker in Docker pour construire l'image
   only:
     - main
   script:
