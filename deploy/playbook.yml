@@ -24,7 +24,7 @@
     - k3s_join
 
 - name: Deploy application
-  hosts: init
+  hosts: k3s
   become: true
   roles:
     - app
