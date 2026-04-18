@@ -1,0 +1,7 @@
+etcd-snapshot-retention: 7
+etcd-s3: true
+etcd-s3-bucket: "{{ s3_bucket_name }}"
+etcd-s3-region: "{{ aws_region_name }}"
+etcd-s3-access-key: "{{ aws_access_key_id }}"
+etcd-s3-secret-key: "{{ aws_secret_access_key }}"
+etcd-s3-folder: "{{ k3s_etcd_snapshot_s3_folder }}"

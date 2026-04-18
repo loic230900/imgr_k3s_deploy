@@ -1,0 +1,19 @@
+- name: Ensure K3s config directory exists
+  file:
+    path: /etc/rancher/k3s
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+
+- name: Deploy K3s config (etcd snaps to S3)
+  template:
+    src: config.yaml.j2
+    dest: /etc/rancher/k3s/config.yaml
+    owner: root
+    group: root
+    mode: "0600"
+  notify: Restart k3s and wait
+
+- name: Flush handlers to apply config (one node at a time)
+  meta: flush_handlers

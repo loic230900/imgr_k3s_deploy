@@ -1,0 +1,15 @@
+- name: Restart k3s service
+  systemd:
+    name: k3s
+    state: restarted
+    daemon_reload: true
+  listen: "Restart k3s and wait"
+
+- name: Wait for K3s API to respond after restart
+  command: k3s kubectl get nodes
+  register: k3s_post_restart
+  retries: 30
+  delay: 5
+  until: k3s_post_restart.rc == 0
+  changed_when: false
+  listen: "Restart k3s and wait"

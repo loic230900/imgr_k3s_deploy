@@ -23,6 +23,13 @@
   roles:
     - k3s_join
 
+- name: Apply K3s config (etcd snaps to S3)
+  hosts: k3s
+  become: true
+  serial: 1
+  roles:
+    - k3s_config
+
 - name: Deploy application
   hosts: k3s
   become: true

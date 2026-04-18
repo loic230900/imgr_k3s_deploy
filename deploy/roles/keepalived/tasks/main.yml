@@ -3,10 +3,27 @@
     name: keepalived
     state: present
 
+- name: Create keepalived_script system user
+  user:
+    name: keepalived_script
+    system: true
+    shell: /sbin/nologin
+    create_home: false
+    comment: "keepalived script runner"
+
 - name: Detect VXLAN interface
-  shell: ip -o addr show | grep '{{ vxlan_network }}\.' | awk '{print $2}'
+  shell: ip -o addr show | grep '{{ vxlan_network }}\.' | awk '{print $2}' | head -1
   register: vxlan_iface
   changed_when: false
+
+- name: Deploy K3s API health check script
+  copy:
+    src: check_apiserver.sh
+    dest: /usr/local/bin/check_apiserver.sh
+    owner: root
+    group: root
+    mode: "0755"
+  notify: Restart keepalived
 
 - name: Deploy keepalived config
   template:
