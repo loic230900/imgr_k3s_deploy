@@ -31,7 +31,7 @@ spec:
         - name: registry-creds
       containers:
         - name: worker
-          image: registry.app.unistra.fr/waltzing/projet-cloud-virt/worker:v3
+          image: registry.app.unistra.fr/waltzing/projet-cloud-virt/worker:3bb79a5
           envFrom:
             - secretRef:
                 name: imgr-secrets
