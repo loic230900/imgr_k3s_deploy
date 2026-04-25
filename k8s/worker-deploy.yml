@@ -31,7 +31,7 @@ spec:
         - name: registry-creds
       containers:
         - name: worker
-          image: registry.app.unistra.fr/waltzing/projet-cloud-virt/worker:v2
+          image: registry.app.unistra.fr/waltzing/projet-cloud-virt/worker:v3
           envFrom:
             - secretRef:
                 name: imgr-secrets
@@ -40,13 +40,23 @@ spec:
               value: /home/appuser
             - name: UV_CACHE_DIR
               value: /tmp/uv-cache
+          livenessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - "uv run --no-dev celery -A image_api.worker inspect ping -d celery@$(hostname) | grep -q pong"
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
           resources:
             requests:
               cpu: 200m
-              memory: 256Mi
+              memory: 384Mi
             limits:
               cpu: "1"
-              memory: 512Mi
+              memory: 768Mi
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
