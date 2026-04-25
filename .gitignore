@@ -1,4 +1,4 @@
 
 .claude/
 k8s/secret.yml
-deploy/group_vars/all.yml
+deploy/.vault_pass
