@@ -29,9 +29,14 @@ spec:
                 topologyKey: kubernetes.io/hostname
       imagePullSecrets:
         - name: registry-creds
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: backend
-          image: registry.app.unistra.fr/waltzing/projet-cloud-virt/backend:v2
+          image: registry.app.unistra.fr/waltzing/projet-cloud-virt/backend:ce3bfb16
           ports:
             - containerPort: 8080
           envFrom:

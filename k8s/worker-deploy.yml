@@ -29,9 +29,14 @@ spec:
                 topologyKey: kubernetes.io/hostname
       imagePullSecrets:
         - name: registry-creds
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: worker
-          image: registry.app.unistra.fr/waltzing/projet-cloud-virt/worker:3bb79a5
+          image: registry.app.unistra.fr/waltzing/projet-cloud-virt/worker:ce3bfb16
           envFrom:
             - secretRef:
                 name: imgr-secrets
