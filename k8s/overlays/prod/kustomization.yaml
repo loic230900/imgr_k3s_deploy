@@ -1,0 +1,13 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../base
+
+images:
+  - name: registry.app.unistra.fr/waltzing/projet-cloud-virt/backend
+    newTag: 256611aa
+  - name: registry.app.unistra.fr/waltzing/projet-cloud-virt/worker
+    newTag: 256611aa
+  - name: registry.app.unistra.fr/waltzing/projet-cloud-virt/frontend
+    newTag: 256611aa

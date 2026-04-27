@@ -12,6 +12,7 @@ variables:
   YAMLLINT_VERSION: "1.35.1"
   ANSIBLE_LINT_VERSION: "24.7.0"
   ANSIBLE_VERSION: "10.5.0"
+  KUSTOMIZE_VERSION: "5.4.3"
 
 .lint-base:
   stage: lint
@@ -173,12 +174,14 @@ dry-run-manifests:
   script:
     - set -e
     - set -o pipefail
-    - apk add --no-cache openssh-client
+    - apk add --no-cache openssh-client curl tar
+    - curl -sSL "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize/v${KUSTOMIZE_VERSION}/kustomize_v${KUSTOMIZE_VERSION}_linux_amd64.tar.gz" | tar xz -C /usr/local/bin
+    - kustomize version
     - mkdir -p ~/.ssh && chmod 700 ~/.ssh
     - echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519 && chmod 600 ~/.ssh/id_ed25519
     - ssh-keyscan -H bastion.maurice-cloud.fr >> ~/.ssh/known_hosts 2>/dev/null
     - ': > dry-run-output.txt'
-    - 'for f in k8s/*.yml; do echo ''---''; cat "$f"; done > manifest-bundle.yml'
+    - kustomize build k8s/overlays/prod > manifest-bundle.yml
     - wc -l manifest-bundle.yml
     - |
       for VM in vm1.waltzing.internal.maurice-cloud.fr vm2.waltzing.internal.maurice-cloud.fr vm3.waltzing.internal.maurice-cloud.fr; do
@@ -203,15 +206,24 @@ deploy:
     - main
   when: manual
   script:
-    - apk add --no-cache openssh-client
+    - set -e
+    - set -o pipefail
+    - apk add --no-cache openssh-client curl tar
+    - curl -sSL "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize/v${KUSTOMIZE_VERSION}/kustomize_v${KUSTOMIZE_VERSION}_linux_amd64.tar.gz" | tar xz -C /usr/local/bin
+    - kustomize version
     - mkdir -p ~/.ssh && chmod 700 ~/.ssh
     - echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519 && chmod 600 ~/.ssh/id_ed25519
     - ssh-keyscan -H bastion.maurice-cloud.fr >> ~/.ssh/known_hosts 2>/dev/null
+    - cd k8s/overlays/prod
+    - kustomize edit set image $IMAGE_BASE/backend=$IMAGE_BASE/backend:$CI_COMMIT_SHORT_SHA
+    - kustomize edit set image $IMAGE_BASE/worker=$IMAGE_BASE/worker:$CI_COMMIT_SHORT_SHA
+    - kustomize edit set image $IMAGE_BASE/frontend=$IMAGE_BASE/frontend:$CI_COMMIT_SHORT_SHA
+    - kustomize build . > $CI_PROJECT_DIR/manifest-bundle.yml
+    - cd $CI_PROJECT_DIR
+    - wc -l manifest-bundle.yml
     - |
       DEPLOY_CMD="export KUBECONFIG=/home/ubuntu/.kube/config && \
-        kubectl -n imgr set image deployment/backend backend=$IMAGE_BASE/backend:$CI_COMMIT_SHORT_SHA && \
-        kubectl -n imgr set image deployment/worker worker=$IMAGE_BASE/worker:$CI_COMMIT_SHORT_SHA && \
-        kubectl -n imgr set image deployment/frontend frontend=$IMAGE_BASE/frontend:$CI_COMMIT_SHORT_SHA && \
+        kubectl apply -f - && \
         kubectl -n imgr rollout status deployment/backend --timeout=120s && \
         kubectl -n imgr rollout status deployment/worker --timeout=120s && \
         kubectl -n imgr rollout status deployment/frontend --timeout=120s"
@@ -220,7 +232,7 @@ deploy:
         echo "Trying $VM..."
         if ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 \
               -o ProxyJump=student@bastion.maurice-cloud.fr \
-              ubuntu@$VM "$DEPLOY_CMD"; then
+              ubuntu@$VM "$DEPLOY_CMD" < manifest-bundle.yml; then
           echo "Deploy succeeded via $VM"
           exit 0
         fi
