@@ -45,7 +45,11 @@ ansible-lint:
   script:
     - pip install --quiet "ansible==${ANSIBLE_VERSION}" "ansible-lint==${ANSIBLE_LINT_VERSION}"
     - ansible-lint --version
-    - ansible-lint --offline --strict --format=pep8 deploy/playbook.yml
+    - ansible-lint --offline --strict --format=pep8
+        deploy/playbook.yml
+        deploy/maintenance.yml
+        deploy/decommission.yml
+
 
 build-backend:
   stage: build
@@ -57,10 +61,14 @@ build-backend:
   script:
     - mkdir -p /kaniko/.docker
     - echo "{\"auths\":{\"${REGISTRY}\":{\"auth\":\"$(printf '%s:%s' "${REGISTRY_USER}" "${REGISTRY_PASSWORD}" | base64 | tr -d '\n')\"}}}" > /kaniko/.docker/config.json
+    # BusyBox date in kaniko-debug has no -Iseconds
+    - export BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
     - /kaniko/executor
       --context "${CI_PROJECT_DIR}"
       --dockerfile "${CI_PROJECT_DIR}/docker/Dockerfile.api"
       --target backend
+      --build-arg GIT_SHA=$CI_COMMIT_SHORT_SHA
+      --build-arg BUILD_DATE=$BUILD_DATE
       --destination "${IMAGE_BASE}/backend:${CI_COMMIT_SHORT_SHA}"
       --destination "${IMAGE_BASE}/backend:latest"
 
@@ -231,21 +239,54 @@ deploy:
     - cd $CI_PROJECT_DIR
     - wc -l manifest-bundle.yml
     - |
-      DEPLOY_CMD="export KUBECONFIG=/home/ubuntu/.kube/config && \
-        kubectl apply -f - && \
-        kubectl -n imgr rollout status deployment/backend --timeout=120s && \
-        kubectl -n imgr rollout status deployment/worker --timeout=120s && \
-        kubectl -n imgr rollout status deployment/frontend --timeout=120s"
+      # Apply manifests and wait for rollout
+      DEPLOY_CMD='set -e
+        export KUBECONFIG=/home/ubuntu/.kube/config
+        kubectl apply -f -
+        kubectl -n imgr rollout status deployment/backend  --timeout=120s
+        kubectl -n imgr rollout status deployment/worker   --timeout=120s
+        kubectl -n imgr rollout status deployment/frontend --timeout=120s'
+
+      # Real POST/GET smoke
+      SMOKE_CMD='set -e
+        export KUBECONFIG=/home/ubuntu/.kube/config
+        echo iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNgYGBgAAAABQABh6FO1AAAAABJRU5ErkJggg== | base64 -d > /tmp/smoke.png
+        RES=$(curl -fsS -F file=@/tmp/smoke.png http://localhost:8080/image)
+        echo "upload response: $RES"
+        ID=$(echo "$RES" | python3 -c "import json,sys;print(json.load(sys.stdin)[\"id\"])")
+        curl -fsSL -o /dev/null http://localhost:8080/image/$ID
+        curl -fsS  -o /dev/null http://localhost:8081/
+        curl -fsS  http://localhost:8080/health | python3 -m json.tool'
+
+      # Auto-rollback on smoke failure
+      ROLLBACK_CMD='export KUBECONFIG=/home/ubuntu/.kube/config
+        kubectl -n imgr rollout undo deployment/backend  || true
+        kubectl -n imgr rollout undo deployment/worker   || true
+        kubectl -n imgr rollout undo deployment/frontend || true
+        kubectl -n imgr rollout status deployment/backend  --timeout=120s
+        kubectl -n imgr rollout status deployment/worker   --timeout=120s
+        kubectl -n imgr rollout status deployment/frontend --timeout=120s'
 
       for VM in vm1.waltzing.internal.maurice-cloud.fr vm2.waltzing.internal.maurice-cloud.fr vm3.waltzing.internal.maurice-cloud.fr; do
-        echo "Trying $VM..."
+        echo "=== Trying $VM ==="
         if ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 \
               -o ProxyJump=student@bastion.maurice-cloud.fr \
               ubuntu@$VM "$DEPLOY_CMD" < manifest-bundle.yml; then
-          echo "Deploy succeeded via $VM"
-          exit 0
+          echo "=== Apply + rollout succeeded via $VM ==="
+          echo "=== Postdeploy smoke ==="
+          if ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 \
+                -o ProxyJump=student@bastion.maurice-cloud.fr \
+                ubuntu@$VM "$SMOKE_CMD"; then
+            echo "=== Smoke PASSED ==="
+            exit 0
+          fi
+          echo "=== Smoke FAILED, auto-rollback ==="
+          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 \
+              -o ProxyJump=student@bastion.maurice-cloud.fr \
+              ubuntu@$VM "$ROLLBACK_CMD" || true
+          exit 1
         fi
-        echo "$VM unreachable, trying next..."
+        echo "=== $VM unreachable, trying next ==="
       done
-      echo "All nodes unreachable"
+      echo "=== All nodes unreachable ==="
       exit 1

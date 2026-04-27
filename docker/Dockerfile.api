@@ -1,6 +1,4 @@
-# base partagée entre backend et worker 
-
-#slim, car enelve doc compilateurs etc non necessaire au runtime
+# Shared base for backend and worker
 FROM python:3.12-slim AS base
 
 WORKDIR /app
@@ -16,9 +14,18 @@ RUN uv sync --no-dev --locked && \
 
 USER appuser
 
-#backend target run le serv Flask
 
+# Backend: Flask + gunicorn on :8080
 FROM base AS backend
+
+# Build identity, populated by kaniko
+ARG GIT_SHA=unknown
+ARG BUILD_DATE=unknown
+ARG APP_VERSION=1.0.0
+
+ENV GIT_SHA=$GIT_SHA
+ENV BUILD_DATE=$BUILD_DATE
+ENV APP_VERSION=$APP_VERSION
 
 EXPOSE 8080
 
@@ -32,7 +39,7 @@ HEALTHCHECK --interval=10s --timeout=3s --retries=3 \
 CMD ["uv", "run", "--no-dev", "gunicorn", "--workers", "2", "--bind", "0.0.0.0:8080", "image_api.web:app"]
 
 
-# worker target run Celery
+# Worker: Celery
 FROM base AS worker
 
-CMD ["uv", "run", "--no-dev", "celery", "--app", "image_api.worker:app","worker", "--loglevel=info"]
+CMD ["uv", "run", "--no-dev", "celery", "--app", "image_api.worker:app", "worker", "--loglevel=info"]

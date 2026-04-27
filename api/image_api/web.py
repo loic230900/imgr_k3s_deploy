@@ -1,3 +1,4 @@
+import os
 from email.utils import formatdate
 from urllib.parse import unquote
 
@@ -45,7 +46,7 @@ def upload() -> ResponseReturnValue:
         return {"error": "missing file"}, 400
 
     file = request.files["file"]
-    # Generate a random ID. It should be random enough to not have colisions
+    # Generate a random ID. It should be random enough to not have collisions
     id = random_id()
 
     bucket.Object(f"{Sizes.Original.segment}/{id}").upload_fileobj(
@@ -76,11 +77,10 @@ def stream_image(id: str, size: Sizes) -> Response | tuple[str, int]:
     # Fail fast if the ID does not have the right shape
     if not valid_id(id):
         return "invalid id", 400
-    
-    # key variable calcule une fois
+
     key = f"{size.segment}/{id}"
-    
-    #production: redirect le client vers S3
+
+    # Production: redirect the client straight to S3 via a presigned URL
     if config.s3["endpoint_url"] is None:
         try:
             bucket.Object(key).load()
@@ -91,12 +91,12 @@ def stream_image(id: str, size: Sizes) -> Response | tuple[str, int]:
             raise
         url = s3.meta.client.generate_presigned_url(
             "get_object",
-            Params={"Bucket": config.bucket_name, "Key":key},
+            Params={"Bucket": config.bucket_name, "Key": key},
             ExpiresIn=3600,
         )
         return redirect(url)
 
-    #local_dev
+    # Local dev: proxy bytes through Flask
     # Forward the If-None-Match and If-Modified-Since headers
     args = {}
     if_none_match = request.headers.get("If-None-Match")
@@ -162,9 +162,14 @@ def tiny(id: str) -> Response | tuple[str, int]:
 
 
 @app.route("/health", methods=["GET"])
-def health() -> str:
-    """Simple healtcheck route to check the service is running properly"""
-    return "ok"
+def health() -> ResponseReturnValue:
+    """Healthcheck route. Returns build identity for ops visibility."""
+    return {
+        "ok": True,
+        "version": os.environ.get("APP_VERSION", "unknown"),
+        "git_sha": os.environ.get("GIT_SHA", "unknown"),
+        "build_date": os.environ.get("BUILD_DATE", "unknown"),
+    }
 
 
 def dev() -> None:
