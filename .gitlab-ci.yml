@@ -1,10 +1,12 @@
 stages:
   - build
+  - scan
   - deploy
 
 variables:
   REGISTRY: registry.app.unistra.fr
   IMAGE_BASE: $REGISTRY/waltzing/projet-cloud-virt
+  TRIVY_VERSION: "0.55.2"
 
 build-backend:
   stage: build
@@ -55,6 +57,65 @@ build-frontend:
       --dockerfile "${CI_PROJECT_DIR}/docker/Dockerfile.web"
       --destination "${IMAGE_BASE}/frontend:${CI_COMMIT_SHORT_SHA}"
       --destination "${IMAGE_BASE}/frontend:latest"
+
+.trivy-scan:
+  stage: scan
+  image:
+    name: aquasec/trivy:$TRIVY_VERSION
+    entrypoint: [""]
+  variables:
+    TRIVY_USERNAME: $REGISTRY_USER
+    TRIVY_PASSWORD: $REGISTRY_PASSWORD
+    TRIVY_NO_PROGRESS: "true"
+    TRIVY_CACHE_DIR: .trivycache/
+  cache:
+    key: trivy-db-v1
+    paths:
+      - .trivycache/
+  only:
+    - main
+  allow_failure: true
+  artifacts:
+    when: always
+    expire_in: 1 week
+    paths:
+      - trivy-*.txt
+
+scan-backend:
+  extends: .trivy-scan
+  needs:
+    - build-backend
+  script:
+    - trivy --version
+    - trivy image
+      --severity UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL
+      --exit-code 0
+      --scanners vuln
+      $IMAGE_BASE/backend:$CI_COMMIT_SHORT_SHA | tee trivy-backend.txt
+
+scan-worker:
+  extends: .trivy-scan
+  needs:
+    - build-worker
+  script:
+    - trivy --version
+    - trivy image
+      --severity UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL
+      --exit-code 0
+      --scanners vuln
+      $IMAGE_BASE/worker:$CI_COMMIT_SHORT_SHA | tee trivy-worker.txt
+
+scan-frontend:
+  extends: .trivy-scan
+  needs:
+    - build-frontend
+  script:
+    - trivy --version
+    - trivy image
+      --severity UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL
+      --exit-code 0
+      --scanners vuln
+      $IMAGE_BASE/frontend:$CI_COMMIT_SHORT_SHA | tee trivy-frontend.txt
 
 deploy:
   stage: deploy
