@@ -2,13 +2,13 @@ import os
 from email.utils import formatdate
 from urllib.parse import unquote
 
+import config
 from botocore.exceptions import ClientError
 from celery.canvas import group
-from flask import Flask, Response, redirect, request, url_for
+from flask import Flask, redirect, request, url_for
 from flask.typing import ResponseReturnValue
 from flask_cors import CORS
 from opentelemetry.instrumentation.flask import FlaskInstrumentor
-import config
 
 from .storage import bucket, s3
 from .utils import random_id, valid_id
@@ -73,7 +73,7 @@ def upload() -> ResponseReturnValue:
     }, 201
 
 
-def stream_image(id: str, size: Sizes) -> Response | tuple[str, int]:
+def stream_image(id: str, size: Sizes) -> ResponseReturnValue:
     # Fail fast if the ID does not have the right shape
     if not valid_id(id):
         return "invalid id", 400
@@ -132,31 +132,31 @@ def stream_image(id: str, size: Sizes) -> Response | tuple[str, int]:
 
 
 @app.route("/image/<id>", methods=["GET"])
-def original(id: str) -> Response | tuple[str, int]:
+def original(id: str) -> ResponseReturnValue:
     """Serve the original image from the S3 bucket"""
     return stream_image(id, Sizes.Original)
 
 
 @app.route("/image/<id>/big", methods=["GET"])
-def big(id: str) -> Response | tuple[str, int]:
+def big(id: str) -> ResponseReturnValue:
     """Serve the big thumbnail image from the S3 bucket"""
     return stream_image(id, Sizes.Big)
 
 
 @app.route("/image/<id>/medium", methods=["GET"])
-def medium(id: str) -> Response | tuple[str, int]:
+def medium(id: str) -> ResponseReturnValue:
     """Serve the medium thumbnail image from the S3 bucket"""
     return stream_image(id, Sizes.Medium)
 
 
 @app.route("/image/<id>/small", methods=["GET"])
-def small(id: str) -> Response | tuple[str, int]:
+def small(id: str) -> ResponseReturnValue:
     """Serve the small thumbnail image from the S3 bucket"""
     return stream_image(id, Sizes.Small)
 
 
 @app.route("/image/<id>/tiny", methods=["GET"])
-def tiny(id: str) -> Response | tuple[str, int]:
+def tiny(id: str) -> ResponseReturnValue:
     """Serve the tiny thumbnail image from the S3 bucket"""
     return stream_image(id, Sizes.Tiny)
 

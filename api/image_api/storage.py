@@ -4,16 +4,18 @@ from botocore.client import Config
 
 s3_kwargs = dict(config.s3)
 
-if s3_kwargs.get("endpoint_url") is None:
+is_aws = s3_kwargs.get("endpoint_url") is None
+
+if is_aws:
     region = s3_kwargs.get("region_name") or "us-east-1"
     s3_kwargs["endpoint_url"] = f"https://s3.{region}.amazonaws.com"
 
-s3 = boto3.resource(
+s3 = boto3.resource(  # type: ignore[call-overload]
     "s3",
     **s3_kwargs,
     config=Config(
         signature_version="s3v4",
-        s3={"addressing_style": "virtual"},
+        s3={"addressing_style": "virtual" if is_aws else "path"},
     ),
 )
 

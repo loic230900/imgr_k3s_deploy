@@ -9,6 +9,7 @@ from PIL import Image
 
 from .storage import bucket
 
+
 @worker_process_init.connect(weak=False)
 def init_celery_tracing(*args: Any, **kwargs: Any) -> None:
     CeleryInstrumentor().instrument()
