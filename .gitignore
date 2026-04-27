@@ -2,3 +2,4 @@
 .claude/
 k8s/secret.yml
 deploy/.vault_pass
+.ansible/
