@@ -156,9 +156,28 @@ scan-frontend:
       --scanners vuln
       $IMAGE_BASE/frontend:$CI_COMMIT_SHORT_SHA | tee trivy-frontend.txt
 
-dry-run-manifests:
-  stage: validate
+.kustomize-runner:
   image: alpine:latest
+  cache:
+    key: kustomize-v${KUSTOMIZE_VERSION}
+    paths:
+      - .kustomize/
+  before_script:
+    - apk add --no-cache openssh-client curl tar
+    - |
+      if [ ! -x .kustomize/kustomize ]; then
+        mkdir -p .kustomize
+        curl -sSL "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize/v${KUSTOMIZE_VERSION}/kustomize_v${KUSTOMIZE_VERSION}_linux_amd64.tar.gz" | tar xz -C .kustomize
+      fi
+    - export PATH="$CI_PROJECT_DIR/.kustomize:$PATH"
+    - kustomize version
+    - mkdir -p ~/.ssh && chmod 700 ~/.ssh
+    - echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519 && chmod 600 ~/.ssh/id_ed25519
+    - ssh-keyscan -H bastion.maurice-cloud.fr >> ~/.ssh/known_hosts 2>/dev/null
+
+dry-run-manifests:
+  extends: .kustomize-runner
+  stage: validate
   only:
     - main
   needs:
@@ -174,12 +193,6 @@ dry-run-manifests:
   script:
     - set -e
     - set -o pipefail
-    - apk add --no-cache openssh-client curl tar
-    - curl -sSL "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize/v${KUSTOMIZE_VERSION}/kustomize_v${KUSTOMIZE_VERSION}_linux_amd64.tar.gz" | tar xz -C /usr/local/bin
-    - kustomize version
-    - mkdir -p ~/.ssh && chmod 700 ~/.ssh
-    - echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519 && chmod 600 ~/.ssh/id_ed25519
-    - ssh-keyscan -H bastion.maurice-cloud.fr >> ~/.ssh/known_hosts 2>/dev/null
     - ': > dry-run-output.txt'
     - kustomize build k8s/overlays/prod > manifest-bundle.yml
     - wc -l manifest-bundle.yml
@@ -200,20 +213,14 @@ dry-run-manifests:
       exit 1
 
 deploy:
+  extends: .kustomize-runner
   stage: deploy
-  image: alpine:latest
   only:
     - main
   when: manual
   script:
     - set -e
     - set -o pipefail
-    - apk add --no-cache openssh-client curl tar
-    - curl -sSL "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize/v${KUSTOMIZE_VERSION}/kustomize_v${KUSTOMIZE_VERSION}_linux_amd64.tar.gz" | tar xz -C /usr/local/bin
-    - kustomize version
-    - mkdir -p ~/.ssh && chmod 700 ~/.ssh
-    - echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519 && chmod 600 ~/.ssh/id_ed25519
-    - ssh-keyscan -H bastion.maurice-cloud.fr >> ~/.ssh/known_hosts 2>/dev/null
     - cd k8s/overlays/prod
     - kustomize edit set image $IMAGE_BASE/backend=$IMAGE_BASE/backend:$CI_COMMIT_SHORT_SHA
     - kustomize edit set image $IMAGE_BASE/worker=$IMAGE_BASE/worker:$CI_COMMIT_SHORT_SHA
