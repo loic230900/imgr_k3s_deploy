@@ -19,7 +19,7 @@
 - name: Join remaining servers to cluster
   hosts: join
   become: true
-  serial: 1 
+  serial: 1
   roles:
     - k3s_join
 

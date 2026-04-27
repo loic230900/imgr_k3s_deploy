@@ -1,4 +1,4 @@
-- name:  Install keepalived
+- name: Install keepalived
   apt:
     name: keepalived
     state: present
@@ -12,9 +12,14 @@
     comment: "keepalived script runner"
 
 - name: Detect VXLAN interface
-  shell: ip -o addr show | grep '{{ vxlan_network }}\.' | awk '{print $2}' | head -1
+  shell: |
+    set -o pipefail
+    ip -o addr show | grep '{{ vxlan_network }}\.' | awk '{print $2}' | head -1
+  args:
+    executable: /bin/bash
   register: vxlan_iface
   changed_when: false
+  check_mode: false
 
 - name: Deploy K3s API health check script
   copy:

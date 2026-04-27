@@ -1,0 +1,28 @@
+extends: default
+
+rules:
+  document-start: disable
+  comments-indentation: disable
+  comments:
+    min-spaces-from-content: 1
+    require-starting-space: true
+  braces:
+    max-spaces-inside: 1
+  octal-values:
+    forbid-implicit-octal: true
+    forbid-explicit-octal: true
+  line-length:
+    max: 200
+    level: error
+  truthy:
+    check-keys: false
+  indentation:
+    indent-sequences: consistent
+
+ignore: |
+  deploy/group_vars/all.yml
+  sujet/
+  .trivycache/
+  node_modules/
+  web/node_modules/
+  web/dist/

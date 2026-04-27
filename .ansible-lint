@@ -1,0 +1,18 @@
+profile: safety
+
+skip_list:
+  - fqcn[action-core]
+  - fqcn[action]
+
+exclude_paths:
+  - .git/
+  - .gitlab-ci.yml
+  - deploy/group_vars/all.yml
+  - k8s/
+  - api/
+  - web/
+  - docker/
+  - sujet/
+  - .trivycache/
+
+offline: true

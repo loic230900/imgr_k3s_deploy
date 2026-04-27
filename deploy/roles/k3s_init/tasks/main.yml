@@ -4,9 +4,14 @@
   register: k3s_binary
 
 - name: Detect VXLAN interface
-  shell: ip -o addr show | grep '{{ vxlan_network }}\.' | awk '{print $2}' | head -1
+  shell: |
+    set -o pipefail
+    ip -o addr show | grep '{{ vxlan_network }}\.' | awk '{print $2}' | head -1
+  args:
+    executable: /bin/bash
   register: vxlan_iface
   changed_when: false
+  check_mode: false
 
 - name: Fail if VXLAN interface not found
   fail:
@@ -15,6 +20,7 @@
 
 - name: Install K3s (first server, cluster-init)
   shell: |
+    set -o pipefail
     curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="server" sh -s - \
       --cluster-init \
       --disable=traefik \
@@ -22,7 +28,10 @@
       --flannel-iface={{ vxlan_iface.stdout }} \
       --node-ip={{ k3s_server_ip }} \
       --service-node-port-range=8000-32767
+  args:
+    executable: /bin/bash
   when: not k3s_binary.stat.exists
+  changed_when: not k3s_binary.stat.exists
 
 - name: Wait for K3s to be ready
   command: k3s kubectl get nodes
@@ -53,7 +62,7 @@
   copy:
     src: /etc/rancher/k3s/k3s.yaml
     dest: /home/ubuntu/.kube/config
-    remote_src:  true
+    remote_src: true
     owner: ubuntu
     group: ubuntu
     mode: "0600"
@@ -63,3 +72,4 @@
     path: /home/ubuntu/.kube/config
     regexp: 'https://127\.0\.0\.1:6443'
     replace: 'https://{{ floating_ip }}:6443'
+    mode: "0600"

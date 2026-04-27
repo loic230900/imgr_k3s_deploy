@@ -1,4 +1,5 @@
 stages:
+  - lint
   - build
   - scan
   - deploy
@@ -7,6 +8,42 @@ variables:
   REGISTRY: registry.app.unistra.fr
   IMAGE_BASE: $REGISTRY/waltzing/projet-cloud-virt
   TRIVY_VERSION: "0.55.2"
+  YAMLLINT_VERSION: "1.35.1"
+  ANSIBLE_LINT_VERSION: "24.7.0"
+  ANSIBLE_VERSION: "10.5.0"
+
+.lint-base:
+  stage: lint
+  image: python:3.12-slim
+  only:
+    - main
+    - merge_requests
+  needs: []
+  variables:
+    PIP_CACHE_DIR: $CI_PROJECT_DIR/.pipcache
+    PIP_DISABLE_PIP_VERSION_CHECK: "1"
+
+yamllint:
+  extends: .lint-base
+  cache:
+    key: pip-yamllint-v1
+    paths:
+      - .pipcache/
+  script:
+    - pip install --quiet "yamllint==${YAMLLINT_VERSION}"
+    - yamllint --version
+    - yamllint --strict --format=parsable .
+
+ansible-lint:
+  extends: .lint-base
+  cache:
+    key: pip-ansible-lint-v1
+    paths:
+      - .pipcache/
+  script:
+    - pip install --quiet "ansible==${ANSIBLE_VERSION}" "ansible-lint==${ANSIBLE_LINT_VERSION}"
+    - ansible-lint --version
+    - ansible-lint --offline --strict --format=pep8 deploy/playbook.yml
 
 build-backend:
   stage: build
