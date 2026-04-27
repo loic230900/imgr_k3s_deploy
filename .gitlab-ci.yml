@@ -127,8 +127,9 @@ scan-backend:
   script:
     - trivy --version
     - trivy image
-      --severity UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL
-      --exit-code 0
+      --severity HIGH,CRITICAL
+      --ignore-unfixed
+      --exit-code 1
       --scanners vuln
       $IMAGE_BASE/backend:$CI_COMMIT_SHORT_SHA | tee trivy-backend.txt
 
@@ -139,8 +140,9 @@ scan-worker:
   script:
     - trivy --version
     - trivy image
-      --severity UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL
-      --exit-code 0
+      --severity HIGH,CRITICAL
+      --ignore-unfixed
+      --exit-code 1
       --scanners vuln
       $IMAGE_BASE/worker:$CI_COMMIT_SHORT_SHA | tee trivy-worker.txt
 
@@ -151,8 +153,9 @@ scan-frontend:
   script:
     - trivy --version
     - trivy image
-      --severity UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL
-      --exit-code 0
+      --severity HIGH,CRITICAL
+      --ignore-unfixed
+      --exit-code 1
       --scanners vuln
       $IMAGE_BASE/frontend:$CI_COMMIT_SHORT_SHA | tee trivy-frontend.txt
 
@@ -183,7 +186,6 @@ dry-run-manifests:
   needs:
     - yamllint
     - ansible-lint
-  allow_failure: true
   artifacts:
     when: always
     expire_in: 1 week
