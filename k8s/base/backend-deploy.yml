@@ -17,6 +17,7 @@ spec:
     metadata:
       labels:
         app: backend
+        app.kubernetes.io/part-of: imgr
     spec:
       affinity:
         podAntiAffinity:
@@ -27,6 +28,13 @@ spec:
                   matchLabels:
                     app: backend
                 topologyKey: kubernetes.io/hostname
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/part-of: imgr
       imagePullSecrets:
         - name: registry-creds
       securityContext:
