@@ -9,7 +9,7 @@ spec:
     kind: Deployment
     name: worker
   minReplicas: 2
-  maxReplicas: 3
+  maxReplicas: 5
   metrics:
     - type: Resource
       resource:
