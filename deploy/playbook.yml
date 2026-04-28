@@ -33,5 +33,7 @@
 - name: Deploy application
   hosts: k3s
   become: true
+  tags:
+    - app
   roles:
     - app
