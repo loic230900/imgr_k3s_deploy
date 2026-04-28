@@ -16,13 +16,14 @@
         cmd: k3s kubectl get nodes -o json
       register: nodes_json
       changed_when: false
+      check_mode: false
       delegate_to: "{{ control_host }}"
 
     - name: Pre-flight, refuse if removing this node leaves under 2 Ready
       ansible.builtin.assert:
         that:
           - >-
-            (nodes_json.stdout | from_json).items
+            (nodes_json.stdout | from_json)['items']
             | map(attribute='status.conditions')
             | map('selectattr', 'type', 'equalto', 'Ready')
             | map('selectattr', 'status', 'equalto', 'True')

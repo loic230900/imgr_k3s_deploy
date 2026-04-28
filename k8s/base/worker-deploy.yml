@@ -18,6 +18,7 @@ spec:
       labels:
         app: worker
     spec:
+      terminationGracePeriodSeconds: 130
       affinity:
         podAntiAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:

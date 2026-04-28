@@ -1,0 +1,74 @@
+# Usage: ansible-playbook -i deploy/inventory.ini deploy/rebalance.yml
+- name: Rebalance pods across all nodes
+  hosts: init
+  become: true
+  gather_facts: false
+  vars:
+    rollout_timeout: 180
+  tasks:
+    - name: Pre-flight, fetch cluster nodes JSON
+      ansible.builtin.command:
+        cmd: k3s kubectl get nodes -o json
+      register: nodes_json
+      changed_when: false
+      check_mode: false
+
+    - name: Pre-flight, assert at least 3 Ready nodes
+      ansible.builtin.assert:
+        that:
+          - >-
+            (nodes_json.stdout | from_json)['items']
+            | map(attribute='status.conditions')
+            | map('selectattr', 'type', 'equalto', 'Ready')
+            | map('selectattr', 'status', 'equalto', 'True')
+            | map('list') | select | list | length >= 3
+        fail_msg: "Refusing to rebalance, fewer than 3 Ready nodes."
+
+    - name: Rolling restart deployment
+      ansible.builtin.command:
+        cmd: k3s kubectl -n imgr rollout restart deployment/{{ item }}
+      loop:
+        - backend
+        - worker
+        - frontend
+      changed_when: true
+
+    - name: Wait for rollout to complete
+      ansible.builtin.command:
+        cmd: k3s kubectl -n imgr rollout status deployment/{{ item }} --timeout={{ rollout_timeout }}s
+      loop:
+        - backend
+        - worker
+        - frontend
+      changed_when: false
+      check_mode: false
+
+    - name: Post-flight, count Running pods in imgr namespace
+      ansible.builtin.shell:
+        cmd: |
+          set -o pipefail
+          k3s kubectl -n imgr get pods --field-selector=status.phase=Running --no-headers | wc -l
+        executable: /bin/bash
+      register: running_pods
+      changed_when: false
+      check_mode: false
+
+    - name: Post-flight, assert at least 6 imgr pods Running
+      ansible.builtin.assert:
+        that:
+          - running_pods.stdout | int >= 6
+        fail_msg: "Only {{ running_pods.stdout }} imgr pods Running, expected >=6."
+
+    - name: Post-flight, capture pod distribution per node
+      ansible.builtin.shell:
+        cmd: |
+          set -o pipefail
+          k3s kubectl -n imgr get pods -o wide --no-headers | awk '{print $7}' | sort | uniq -c
+        executable: /bin/bash
+      register: distribution
+      changed_when: false
+      check_mode: false
+
+    - name: Display distribution
+      ansible.builtin.debug:
+        msg: "{{ distribution.stdout_lines }}"

@@ -49,6 +49,9 @@ ansible-lint:
         deploy/playbook.yml
         deploy/maintenance.yml
         deploy/decommission.yml
+        deploy/drain.yml
+        deploy/uncordon.yml
+        deploy/rebalance.yml
 
 
 build-backend:

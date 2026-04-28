@@ -15,9 +15,4 @@ resources:
   - frontend-deploy.yml
   - frontend-service.yml
   - frontend-pdb.yml
-  - netpol-default-deny.yml
-  - netpol-allow-dns.yml
-  - netpol-allow-egress-external.yml
-  - netpol-allow-frontend-ingress.yml
-  - netpol-allow-backend-ingress.yml
-  - netpol-allow-frontend-to-backend.yml
+  - netpol

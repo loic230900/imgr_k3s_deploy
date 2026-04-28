@@ -1,11 +1,11 @@
-- name: Planned VM maintenance, drain reboot uncordon
+# Drain a node out of service without rebooting it.
+# Usage: ansible-playbook -i deploy/inventory.ini deploy/drain.yml -e target=vm3
+- name: Cordon and drain a node, leave it out of service
   hosts: "{{ target | default('__no_target__') }}"
   become: true
   gather_facts: false
-  serial: 1
   vars:
     drain_timeout: 180
-    reboot_timeout: 600
   tasks:
     - name: Pick a control-plane node that is not the target
       ansible.builtin.set_fact:
@@ -40,36 +40,9 @@
       delegate_to: "{{ control_host }}"
       changed_when: true
 
-    - name: Reboot the target node
-      ansible.builtin.reboot:
-        reboot_timeout: "{{ reboot_timeout }}"
-
-    - name: Uncordon the target node
-      ansible.builtin.command:
-        cmd: k3s kubectl uncordon {{ inventory_hostname }}
-      delegate_to: "{{ control_host }}"
-      changed_when: true
-
-    - name: Post-flight, wait for the node to be Ready again
-      ansible.builtin.command:
-        cmd: k3s kubectl wait --for=condition=Ready node/{{ inventory_hostname }} --timeout=180s
-      delegate_to: "{{ control_host }}"
-      changed_when: false
-      check_mode: false
-
-    - name: Post-flight, count Running pods in imgr namespace
-      ansible.builtin.shell:
-        cmd: |
-          set -o pipefail
-          k3s kubectl -n imgr get pods --field-selector=status.phase=Running --no-headers | wc -l
-        executable: /bin/bash
-      delegate_to: "{{ control_host }}"
-      register: running_pods
-      changed_when: false
-      check_mode: false
-
-    - name: Post-flight, assert at least 6 imgr pods Running
-      ansible.builtin.assert:
-        that:
-          - running_pods.stdout | int >= 6
-        fail_msg: "Only {{ running_pods.stdout }} imgr pods Running, expected >=6."
+    - name: Notice for operator
+      ansible.builtin.debug:
+        msg: >-
+          {{ inventory_hostname }} is drained and cordoned.
+          Run 'ansible-playbook -i inventory.ini uncordon.yml -e target={{ inventory_hostname }}'
+          to put it back in service.

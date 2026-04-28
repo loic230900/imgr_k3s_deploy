@@ -51,6 +51,7 @@
     group: ubuntu
     mode: "0600"
   run_once: true
+  no_log: true
 
 - name: Create imgr namespace
   command: k3s kubectl apply -f /home/ubuntu/k8s/base/namespace.yml
@@ -69,11 +70,13 @@
     executable: /bin/bash
   run_once: true
   changed_when: false
+  no_log: true
 
 - name: Apply application secrets
   command: k3s kubectl apply -f /home/ubuntu/k8s/secret.yml
   run_once: true
   changed_when: false
+  no_log: true
 
 - name: Apply all k8s manifests via kustomize overlay
   command: k3s kubectl apply -k /home/ubuntu/k8s/overlays/prod/
