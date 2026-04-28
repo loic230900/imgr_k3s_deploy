@@ -14,7 +14,7 @@ spec:
   policyTypes:
     - Egress
   egress:
-    # Exclusion: empeche un pod compromis d'atteindre des cibles internes 
+    # Exclusion: empeche un pod compromis d'atteindre des cibles internes
     - to:
         - ipBlock:
             cidr: 0.0.0.0/0
