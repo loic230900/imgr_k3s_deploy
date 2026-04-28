@@ -9,6 +9,7 @@ COPY web/ .
 RUN npm run build
 
 
+# Variante rootless de nginx: compatible PSS restricted, ecoute sur 8080.
 FROM nginxinc/nginx-unprivileged:alpine
 
 COPY docker/nginx.conf /etc/nginx/conf.d/default.conf

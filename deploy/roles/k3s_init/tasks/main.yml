@@ -67,6 +67,7 @@
     group: ubuntu
     mode: "0600"
 
+# kubeconfig pointe sur la VIP plutot que 127.0.0.1 : kubectl reste utilisable apres failover.
 - name: Update kubeconfig server address to floating IP
   replace:
     path: /home/ubuntu/.kube/config

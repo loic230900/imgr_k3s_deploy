@@ -14,8 +14,10 @@ spec:
         - podSelector:
             matchLabels:
               app: frontend
+        # VXLAN inter-VM: NodePort traverse les VMs via cette plage.
         - ipBlock:
             cidr: 192.168.27.0/24
+        # Pod CIDR K3s: sondes kubelet et trafic east-west.
         - ipBlock:
             cidr: 10.42.0.0/16
       ports:

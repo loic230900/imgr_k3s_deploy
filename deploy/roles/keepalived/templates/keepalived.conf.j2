@@ -3,6 +3,7 @@ global_defs {
     enable_script_security
 }
 
+# weight -60 > ecart vm1-vm2 (50) : la VIP migre si l'API K3s tombe.
 vrrp_script chk_apiserver {
     script "/usr/local/bin/check_apiserver.sh"
     interval 5

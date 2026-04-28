@@ -19,6 +19,7 @@ spec:
         app: worker
         app.kubernetes.io/part-of: imgr
     spec:
+      # Celery task_time_limit (120s) : un resize en cours finit avant SIGKILL.
       terminationGracePeriodSeconds: 130
       affinity:
         podAntiAffinity:
