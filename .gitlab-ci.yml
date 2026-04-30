@@ -17,13 +17,13 @@ variables:
   KUSTOMIZE_VERSION: "5.4.3"
   PIPELINE_TYPE:
     value: "standard"
-    description: "standard = CI normale (push, MR, deploy, bootstrap). ops = drain/uncordon/maintenance/rebalance/decommission/rotate-secrets."
+    description: "standard = CI normale (push, MR, deploy, bootstrap). ops = drain/uncordon/cordon-only/maintenance/rebalance/rolling-maintenance/decommission/reset-cluster/rotate-secrets."
   TARGET:
     value: "vm2"
-    description: "VM cible (vm1, vm2, vm3) pour les jobs ops qui agissent sur un nœud spécifique."
+    description: "VM cible (vm1, vm2, vm3) pour les jobs ops qui agissent sur un nœud spécifique. Ignoré par rolling-maintenance et reset-cluster."
   CONFIRM:
     value: ""
-    description: "Pour decommission uniquement, tape exactement YES_DESTROY pour confirmer."
+    description: "Gate des jobs destructifs. YES_DESTROY = decommission. NUKE_EVERYTHING = reset-cluster (efface K3s + keepalived sur les 3 VMs)."
 
 include:
   - local: 'cicd/standard.yml'
