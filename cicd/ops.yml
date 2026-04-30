@@ -6,8 +6,8 @@ drain:
       when: manual
     - when: never
   script:
-    - cd deploy
-    - ansible-playbook -i inventory.ini drain.yml -e target=$TARGET
+    - cd ansible
+    - ansible-playbook -i inventory.ini ops/drain.yml -e target=$TARGET
 
 uncordon:
   extends: .ansible-base
@@ -17,8 +17,8 @@ uncordon:
       when: manual
     - when: never
   script:
-    - cd deploy
-    - ansible-playbook -i inventory.ini uncordon.yml -e target=$TARGET
+    - cd ansible
+    - ansible-playbook -i inventory.ini ops/uncordon.yml -e target=$TARGET
 
 cordon-only:
   extends: .ansible-base
@@ -28,8 +28,8 @@ cordon-only:
       when: manual
     - when: never
   script:
-    - cd deploy
-    - ansible-playbook -i inventory.ini cordon-only.yml -e target=$TARGET
+    - cd ansible
+    - ansible-playbook -i inventory.ini ops/cordon-only.yml -e target=$TARGET
 
 maintenance:
   extends: .ansible-base
@@ -39,8 +39,8 @@ maintenance:
       when: manual
     - when: never
   script:
-    - cd deploy
-    - ansible-playbook -i inventory.ini maintenance.yml -e target=$TARGET
+    - cd ansible
+    - ansible-playbook -i inventory.ini ops/maintenance.yml -e target=$TARGET
 
 rebalance:
   extends: .ansible-base
@@ -50,19 +50,25 @@ rebalance:
       when: manual
     - when: never
   script:
-    - cd deploy
-    - ansible-playbook -i inventory.ini rebalance.yml
+    - cd ansible
+    - ansible-playbook -i inventory.ini ops/rebalance.yml
 
 rolling-maintenance:
   extends: .ansible-base
   stage: ops
   rules:
+    # Pipeline ops manuelle, déclenchée à la main par l'opérateur
     - if: $PIPELINE_TYPE == "ops" && $CI_COMMIT_REF_PROTECTED == "true"
       when: manual
+    # Pipeline planifiée GitLab Schedule (Settings -> CI/CD -> Schedules)
+    # Configurer le schedule avec PIPELINE_TYPE=scheduled-rolling-maintenance
+    # pour que ce job s'auto-déclenche périodiquement
+    - if: $PIPELINE_TYPE == "scheduled-rolling-maintenance" && $CI_PIPELINE_SOURCE == "schedule"
+      when: on_success
     - when: never
   script:
-    - cd deploy
-    - ansible-playbook -i inventory.ini rolling-maintenance.yml
+    - cd ansible
+    - ansible-playbook -i inventory.ini ops/rolling-maintenance.yml
 
 decommission:
   extends: .ansible-base
@@ -72,8 +78,19 @@ decommission:
       when: manual
     - when: never
   script:
-    - cd deploy
-    - ansible-playbook -i inventory.ini decommission.yml -e target=$TARGET
+    - cd ansible
+    - ansible-playbook -i inventory.ini ops/decommission.yml -e target=$TARGET
+
+reset-cluster:
+  extends: .ansible-base
+  stage: ops
+  rules:
+    - if: $PIPELINE_TYPE == "ops" && $CONFIRM == "NUKE_EVERYTHING" && $CI_COMMIT_REF_PROTECTED == "true"
+      when: manual
+    - when: never
+  script:
+    - cd ansible
+    - ansible-playbook -i inventory.ini ops/reset-cluster.yml -e reset_confirm=NUKE_EVERYTHING
 
 rotate-secrets:
   extends: .ansible-base
@@ -83,7 +100,7 @@ rotate-secrets:
       when: manual
     - when: never
   script:
-    - cd deploy
-    - ansible-playbook -i inventory.ini playbook.yml --tags app
+    - cd ansible
+    - ansible-playbook -i inventory.ini bootstrap.yml --tags app
     - ssh ubuntu@vm1.waltzing.internal.maurice-cloud.fr
         "sudo k3s kubectl -n imgr rollout restart deployment/backend deployment/worker"

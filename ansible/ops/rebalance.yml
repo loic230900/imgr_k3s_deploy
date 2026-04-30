@@ -1,4 +1,4 @@
-# Usage: ansible-playbook -i deploy/inventory.ini deploy/rebalance.yml
+# Usage: ansible-playbook -i ansible/inventory.ini ansible/ops/rebalance.yml
 - name: Rebalance pods across all nodes
   hosts: init
   become: true

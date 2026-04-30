@@ -1,7 +1,11 @@
 .git
 .github
+.gitlab-ci.yml
+cicd/
+ansible/
+k8s/
 sujet/
-playbook/
+rapport/
 api/.venv/
 api/__pycache__/
 web/node_modules/

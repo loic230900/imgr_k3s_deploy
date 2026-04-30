@@ -1,3 +1,15 @@
+secret-scan:
+  stage: lint
+  image:
+    name: zricethezav/gitleaks:latest
+    entrypoint: [""]
+  rules:
+    - if: $PIPELINE_TYPE == "standard"
+    - when: never
+  needs: []
+  script:
+    - gitleaks detect --source . --redact -v --exit-code 1
+
 yamllint:
   extends: .lint-base
   cache:
@@ -19,14 +31,15 @@ ansible-lint:
     - pip install --quiet "ansible==${ANSIBLE_VERSION}" "ansible-lint==${ANSIBLE_LINT_VERSION}"
     - ansible-lint --version
     - ansible-lint --offline --strict --format=pep8
-        deploy/playbook.yml
-        deploy/maintenance.yml
-        deploy/decommission.yml
-        deploy/drain.yml
-        deploy/uncordon.yml
-        deploy/cordon-only.yml
-        deploy/rebalance.yml
-        deploy/rolling-maintenance.yml
+        ansible/bootstrap.yml
+        ansible/ops/drain.yml
+        ansible/ops/uncordon.yml
+        ansible/ops/cordon-only.yml
+        ansible/ops/maintenance.yml
+        ansible/ops/rebalance.yml
+        ansible/ops/rolling-maintenance.yml
+        ansible/ops/decommission.yml
+        ansible/ops/reset-cluster.yml
 
 
 build-backend:
@@ -116,6 +129,7 @@ dry-run-manifests:
     - if: $PIPELINE_TYPE == "standard" && $CI_COMMIT_REF_PROTECTED == "true"
     - when: never
   needs:
+    - secret-scan
     - yamllint
     - ansible-lint
     - build-backend
@@ -236,5 +250,5 @@ bootstrap:
       when: manual
     - when: never
   script:
-    - cd deploy
-    - ansible-playbook -i inventory.ini playbook.yml
+    - cd ansible
+    - ansible-playbook -i inventory.ini bootstrap.yml

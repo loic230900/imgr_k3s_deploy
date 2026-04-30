@@ -1,7 +1,7 @@
 
 .claude/
 k8s/secret.yml
-deploy/.vault_pass
-deploy/.env
+ansible/.vault_pass
+ansible/.env
 .ansible/
 rapport/

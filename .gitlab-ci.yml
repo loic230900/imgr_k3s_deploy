@@ -26,8 +26,8 @@ variables:
     description: "Pour decommission uniquement, tape exactement YES_DESTROY pour confirmer."
 
 include:
-  - local: 'ci/standard.yml'
-  - local: 'ci/ops.yml'
+  - local: 'cicd/standard.yml'
+  - local: 'cicd/ops.yml'
 
 .lint-base:
   stage: lint

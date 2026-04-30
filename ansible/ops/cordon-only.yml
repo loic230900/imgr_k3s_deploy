@@ -1,5 +1,5 @@
 # Marque un nœud comme non-schedulable sans évincer les pods existants.
-# Usage: ansible-playbook -i deploy/inventory.ini deploy/cordon-only.yml -e target=vm3
+# Usage: ansible-playbook -i ansible/inventory.ini ansible/ops/cordon-only.yml -e target=vm3
 - name: Cordon a node, no eviction
   hosts: "{{ target | default('__no_target__') }}"
   become: true

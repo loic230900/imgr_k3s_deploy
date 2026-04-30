@@ -1,5 +1,5 @@
 # Drain + reboot + uncordon de toutes les VM, séquentiellement (serial: 1).
-# Usage: ansible-playbook -i deploy/inventory.ini deploy/rolling-maintenance.yml
+# Usage: ansible-playbook -i ansible/inventory.ini ansible/ops/rolling-maintenance.yml
 - name: Rolling maintenance, toutes les VM séquentiellement
   hosts: k3s
   become: true

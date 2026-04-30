@@ -12,8 +12,8 @@
           - lookup('env', 'REGISTRY_USER') | length > 0
           - lookup('env', 'REGISTRY_PASSWORD') | length > 0
         fail_msg: >-
-          Variables d'environnement manquantes. Soit sourcer deploy/.env
-          (cp deploy/.env.example deploy/.env, remplir les valeurs, source),
+          Variables d'environnement manquantes. Soit sourcer ansible/.env
+          (cp ansible/.env.example ansible/.env, remplir les valeurs, source),
           soit lancer depuis un job CI où les GitLab CI Variables sont injectées.
 
 - name: Base setup on all nodes

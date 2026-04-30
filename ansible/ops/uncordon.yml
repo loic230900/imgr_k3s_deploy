@@ -1,5 +1,5 @@
 # Put a previously drained node back into service.
-# Usage: ansible-playbook -i deploy/inventory.ini deploy/uncordon.yml -e target=vm3
+# Usage: ansible-playbook -i ansible/inventory.ini ansible/ops/uncordon.yml -e target=vm3
 - name: Uncordon a node and verify cluster health
   hosts: "{{ target | default('__no_target__') }}"
   become: true

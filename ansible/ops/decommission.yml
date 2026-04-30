@@ -1,6 +1,6 @@
-# Drain a node out of service without rebooting it.
-# Usage: ansible-playbook -i deploy/inventory.ini deploy/drain.yml -e target=vm3
-- name: Cordon and drain a node, leave it out of service
+# Graceful node removal: drain, delete from cluster, uninstall K3s
+# Usage: ansible-playbook -i ansible/inventory.ini ansible/ops/decommission.yml -e target=vm3
+- name: Graceful node removal, drain delete uninstall
   hosts: "{{ target | default('__no_target__') }}"
   become: true
   gather_facts: false
@@ -19,7 +19,7 @@
       check_mode: false
       delegate_to: "{{ control_host }}"
 
-    - name: Pre-flight, assert at least 3 Ready nodes before drain
+    - name: Pre-flight, refuse if removing this node leaves under 2 Ready
       ansible.builtin.assert:
         that:
           - >-
@@ -28,7 +28,7 @@
             | map('selectattr', 'type', 'equalto', 'Ready')
             | map('selectattr', 'status', 'equalto', 'True')
             | map('list') | select | list | length >= 3
-        fail_msg: "Refusing to drain, fewer than 3 Ready nodes."
+        fail_msg: "Refusing, removing {{ inventory_hostname }} would leave under 2 Ready nodes."
 
     - name: Cordon and drain the target node
       ansible.builtin.command:
@@ -40,9 +40,24 @@
       delegate_to: "{{ control_host }}"
       changed_when: true
 
-    - name: Notice for operator
-      ansible.builtin.debug:
-        msg: >-
-          {{ inventory_hostname }} is drained and cordoned.
-          Run 'ansible-playbook -i inventory.ini uncordon.yml -e target={{ inventory_hostname }}'
-          to put it back in service.
+    - name: Delete the node from the cluster
+      ansible.builtin.command:
+        cmd: k3s kubectl delete node {{ inventory_hostname }}
+      delegate_to: "{{ control_host }}"
+      changed_when: true
+
+    - name: Stop and uninstall K3s on the target
+      ansible.builtin.command:
+        cmd: /usr/local/bin/k3s-uninstall.sh
+      args:
+        removes: /usr/local/bin/k3s-uninstall.sh
+      changed_when: true
+
+# Re-render keepalived on survivors. No-op today (template has no peer list)
+# but kept defensively in case peers are ever added.
+- name: Re-render keepalived config on remaining nodes
+  hosts: "k3s:!{{ target | default('__no_target__') }}"
+  become: true
+  gather_facts: true
+  roles:
+    - keepalived
