@@ -15,9 +15,12 @@ variables:
   ANSIBLE_LINT_VERSION: "24.7.0"
   ANSIBLE_VERSION: "10.5.0"
   KUSTOMIZE_VERSION: "5.4.3"
+  PIPELINE_TYPE:
+    value: "standard"
+    description: "Type de pipeline. standard = CI normale (push, MR, deploy, bootstrap). ops = drain/uncordon/maintenance/rebalance/decommission/rotate-secrets uniquement."
   TARGET:
     value: "vm2"
-    description: "VM cible (vm1, vm2 ou vm3) pour drain, uncordon, maintenance, decommission. Modifiable au clic Play."
+    description: "VM cible (vm1, vm2 ou vm3) pour drain, uncordon, maintenance, decommission. Utilisé avec PIPELINE_TYPE=ops."
   CONFIRM:
     value: ""
     description: "Pour decommission uniquement, tape exactement YES_DESTROY pour confirmer."
@@ -25,9 +28,9 @@ variables:
 .lint-base:
   stage: lint
   image: python:3.12-slim
-  only:
-    - main
-    - merge_requests
+  rules:
+    - if: $PIPELINE_TYPE == "standard"
+    - when: never
   needs: []
   variables:
     PIP_CACHE_DIR: $CI_PROJECT_DIR/.pipcache
@@ -62,13 +65,17 @@ ansible-lint:
         deploy/rebalance.yml
 
 
-build-backend:
+.kaniko-base:
   stage: build
   image:
     name: gcr.io/kaniko-project/executor:v1.23.2-debug
     entrypoint: [""]
-  only:
-    - main
+  rules:
+    - if: $PIPELINE_TYPE == "standard" && $CI_COMMIT_REF_PROTECTED == "true"
+    - when: never
+
+build-backend:
+  extends: .kaniko-base
   script:
     - mkdir -p /kaniko/.docker
     - echo "{\"auths\":{\"${REGISTRY}\":{\"auth\":\"$(printf '%s:%s' "${REGISTRY_USER}" "${REGISTRY_PASSWORD}" | base64 | tr -d '\n')\"}}}" > /kaniko/.docker/config.json
@@ -84,12 +91,7 @@ build-backend:
       --destination "${IMAGE_BASE}/backend:latest"
 
 build-worker:
-  stage: build
-  image:
-    name: gcr.io/kaniko-project/executor:v1.23.2-debug
-    entrypoint: [""]
-  only:
-    - main
+  extends: .kaniko-base
   script:
     - mkdir -p /kaniko/.docker
     - echo "{\"auths\":{\"${REGISTRY}\":{\"auth\":\"$(printf '%s:%s' "${REGISTRY_USER}" "${REGISTRY_PASSWORD}" | base64 | tr -d '\n')\"}}}" > /kaniko/.docker/config.json
@@ -101,12 +103,7 @@ build-worker:
       --destination "${IMAGE_BASE}/worker:latest"
 
 build-frontend:
-  stage: build
-  image:
-    name: gcr.io/kaniko-project/executor:v1.23.2-debug
-    entrypoint: [""]
-  only:
-    - main
+  extends: .kaniko-base
   script:
     - mkdir -p /kaniko/.docker
     - echo "{\"auths\":{\"${REGISTRY}\":{\"auth\":\"$(printf '%s:%s' "${REGISTRY_USER}" "${REGISTRY_PASSWORD}" | base64 | tr -d '\n')\"}}}" > /kaniko/.docker/config.json
@@ -130,8 +127,9 @@ build-frontend:
     key: trivy-db-v1
     paths:
       - .trivycache/
-  only:
-    - main
+  rules:
+    - if: $PIPELINE_TYPE == "standard" && $CI_COMMIT_REF_PROTECTED == "true"
+    - when: never
   allow_failure: true
   artifacts:
     when: always
@@ -200,14 +198,18 @@ scan-frontend:
 dry-run-manifests:
   extends: .kustomize-runner
   stage: validate
-  only:
-    - main
+  rules:
+    - if: $PIPELINE_TYPE == "standard" && $CI_COMMIT_REF_PROTECTED == "true"
+    - when: never
   needs:
     - yamllint
     - ansible-lint
     - build-backend
     - build-worker
     - build-frontend
+    - scan-backend
+    - scan-worker
+    - scan-frontend
   artifacts:
     when: always
     expire_in: 4 weeks
@@ -239,9 +241,12 @@ dry-run-manifests:
 deploy:
   extends: .kustomize-runner
   stage: deploy
-  only:
-    - main
-  when: manual
+  needs:
+    - dry-run-manifests
+  rules:
+    - if: $PIPELINE_TYPE == "standard" && $CI_COMMIT_REF_PROTECTED == "true"
+      when: manual
+    - when: never
   script:
     - set -e
     - set -o pipefail
@@ -336,7 +341,7 @@ bootstrap:
   needs:
     - dry-run-manifests
   rules:
-    - if: $CI_COMMIT_REF_PROTECTED == "true"
+    - if: $PIPELINE_TYPE == "standard" && $CI_COMMIT_REF_PROTECTED == "true"
       when: manual
     - when: never
   script:
@@ -349,7 +354,7 @@ drain:
   needs:
     - dry-run-manifests
   rules:
-    - if: $CI_COMMIT_REF_PROTECTED == "true"
+    - if: $PIPELINE_TYPE == "ops" && $CI_COMMIT_REF_PROTECTED == "true"
       when: manual
     - when: never
   script:
@@ -362,7 +367,7 @@ uncordon:
   needs:
     - dry-run-manifests
   rules:
-    - if: $CI_COMMIT_REF_PROTECTED == "true"
+    - if: $PIPELINE_TYPE == "ops" && $CI_COMMIT_REF_PROTECTED == "true"
       when: manual
     - when: never
   script:
@@ -375,7 +380,7 @@ maintenance:
   needs:
     - dry-run-manifests
   rules:
-    - if: $CI_COMMIT_REF_PROTECTED == "true"
+    - if: $PIPELINE_TYPE == "ops" && $CI_COMMIT_REF_PROTECTED == "true"
       when: manual
     - when: never
   script:
@@ -388,7 +393,7 @@ rebalance:
   needs:
     - dry-run-manifests
   rules:
-    - if: $CI_COMMIT_REF_PROTECTED == "true"
+    - if: $PIPELINE_TYPE == "ops" && $CI_COMMIT_REF_PROTECTED == "true"
       when: manual
     - when: never
   script:
@@ -401,7 +406,7 @@ decommission:
   needs:
     - dry-run-manifests
   rules:
-    - if: $CI_COMMIT_REF_PROTECTED == "true" && $CONFIRM == "YES_DESTROY" && $TARGET != ""
+    - if: $PIPELINE_TYPE == "ops" && $CONFIRM == "YES_DESTROY" && $TARGET != "" && $CI_COMMIT_REF_PROTECTED == "true"
       when: manual
     - when: never
   script:
@@ -414,7 +419,7 @@ rotate-secrets:
   needs:
     - dry-run-manifests
   rules:
-    - if: $CI_COMMIT_REF_PROTECTED == "true"
+    - if: $PIPELINE_TYPE == "ops" && $CI_COMMIT_REF_PROTECTED == "true"
       when: manual
     - when: never
   script:
