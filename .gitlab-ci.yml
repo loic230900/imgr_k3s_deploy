@@ -351,8 +351,6 @@ bootstrap:
 drain:
   extends: .ansible-base
   stage: ops
-  needs:
-    - dry-run-manifests
   rules:
     - if: $PIPELINE_TYPE == "ops" && $CI_COMMIT_REF_PROTECTED == "true"
       when: manual
@@ -364,8 +362,6 @@ drain:
 uncordon:
   extends: .ansible-base
   stage: ops
-  needs:
-    - dry-run-manifests
   rules:
     - if: $PIPELINE_TYPE == "ops" && $CI_COMMIT_REF_PROTECTED == "true"
       when: manual
@@ -377,8 +373,6 @@ uncordon:
 maintenance:
   extends: .ansible-base
   stage: ops
-  needs:
-    - dry-run-manifests
   rules:
     - if: $PIPELINE_TYPE == "ops" && $CI_COMMIT_REF_PROTECTED == "true"
       when: manual
@@ -390,8 +384,6 @@ maintenance:
 rebalance:
   extends: .ansible-base
   stage: ops
-  needs:
-    - dry-run-manifests
   rules:
     - if: $PIPELINE_TYPE == "ops" && $CI_COMMIT_REF_PROTECTED == "true"
       when: manual
@@ -403,8 +395,6 @@ rebalance:
 decommission:
   extends: .ansible-base
   stage: ops
-  needs:
-    - dry-run-manifests
   rules:
     - if: $PIPELINE_TYPE == "ops" && $CONFIRM == "YES_DESTROY" && $TARGET != "" && $CI_COMMIT_REF_PROTECTED == "true"
       when: manual
@@ -416,8 +406,6 @@ decommission:
 rotate-secrets:
   extends: .ansible-base
   stage: ops
-  needs:
-    - dry-run-manifests
   rules:
     - if: $PIPELINE_TYPE == "ops" && $CI_COMMIT_REF_PROTECTED == "true"
       when: manual
