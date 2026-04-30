@@ -17,10 +17,10 @@ variables:
   KUSTOMIZE_VERSION: "5.4.3"
   PIPELINE_TYPE:
     value: "standard"
-    description: "Type de pipeline. standard = CI normale (push, MR, deploy, bootstrap). ops = drain/uncordon/cordon-only/maintenance/rebalance/rolling-maintenance/decommission/rotate-secrets uniquement."
+    description: "standard = CI normale (push, MR, deploy, bootstrap). ops = drain/uncordon/maintenance/rebalance/decommission/rotate-secrets."
   TARGET:
     value: "vm2"
-    description: "VM cible (vm1, vm2 ou vm3) pour drain, uncordon, cordon-only, maintenance, decommission. Utilisé avec PIPELINE_TYPE=ops."
+    description: "VM cible (vm1, vm2, vm3) pour les jobs ops qui agissent sur un nœud spécifique."
   CONFIRM:
     value: ""
     description: "Pour decommission uniquement, tape exactement YES_DESTROY pour confirmer."
