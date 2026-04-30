@@ -15,6 +15,12 @@ variables:
   ANSIBLE_LINT_VERSION: "24.7.0"
   ANSIBLE_VERSION: "10.5.0"
   KUSTOMIZE_VERSION: "5.4.3"
+  TARGET:
+    value: "vm2"
+    description: "VM cible (vm1, vm2 ou vm3) pour drain, uncordon, maintenance, decommission. Modifiable au clic Play."
+  CONFIRM:
+    value: ""
+    description: "Pour decommission uniquement, tape exactement YES_DESTROY pour confirmer."
 
 .lint-base:
   stage: lint
@@ -334,10 +340,6 @@ bootstrap:
 drain:
   extends: .ansible-base
   stage: ops
-  variables:
-    TARGET:
-      value: "vm2"
-      description: "VM à drainer (vm1, vm2 ou vm3)"
   rules:
     - if: $CI_COMMIT_REF_PROTECTED == "true"
       when: manual
@@ -349,10 +351,6 @@ drain:
 uncordon:
   extends: .ansible-base
   stage: ops
-  variables:
-    TARGET:
-      value: "vm2"
-      description: "VM à réactiver"
   rules:
     - if: $CI_COMMIT_REF_PROTECTED == "true"
       when: manual
@@ -364,10 +362,6 @@ uncordon:
 maintenance:
   extends: .ansible-base
   stage: ops
-  variables:
-    TARGET:
-      value: "vm2"
-      description: "VM à drainer + reboot + uncordon"
   rules:
     - if: $CI_COMMIT_REF_PROTECTED == "true"
       when: manual
@@ -390,13 +384,6 @@ rebalance:
 decommission:
   extends: .ansible-base
   stage: ops
-  variables:
-    TARGET:
-      value: ""
-      description: "VM à RETIRER définitivement (DESTRUCTIF)"
-    CONFIRM:
-      value: ""
-      description: "Tape exactement YES_DESTROY pour confirmer"
   rules:
     - if: $CI_COMMIT_REF_PROTECTED == "true" && $CONFIRM == "YES_DESTROY" && $TARGET != ""
       when: manual
