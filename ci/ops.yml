@@ -1,0 +1,89 @@
+drain:
+  extends: .ansible-base
+  stage: ops
+  rules:
+    - if: $PIPELINE_TYPE == "ops" && $CI_COMMIT_REF_PROTECTED == "true"
+      when: manual
+    - when: never
+  script:
+    - cd deploy
+    - ansible-playbook -i inventory.ini drain.yml -e target=$TARGET
+
+uncordon:
+  extends: .ansible-base
+  stage: ops
+  rules:
+    - if: $PIPELINE_TYPE == "ops" && $CI_COMMIT_REF_PROTECTED == "true"
+      when: manual
+    - when: never
+  script:
+    - cd deploy
+    - ansible-playbook -i inventory.ini uncordon.yml -e target=$TARGET
+
+cordon-only:
+  extends: .ansible-base
+  stage: ops
+  rules:
+    - if: $PIPELINE_TYPE == "ops" && $CI_COMMIT_REF_PROTECTED == "true"
+      when: manual
+    - when: never
+  script:
+    - cd deploy
+    - ansible-playbook -i inventory.ini cordon-only.yml -e target=$TARGET
+
+maintenance:
+  extends: .ansible-base
+  stage: ops
+  rules:
+    - if: $PIPELINE_TYPE == "ops" && $CI_COMMIT_REF_PROTECTED == "true"
+      when: manual
+    - when: never
+  script:
+    - cd deploy
+    - ansible-playbook -i inventory.ini maintenance.yml -e target=$TARGET
+
+rebalance:
+  extends: .ansible-base
+  stage: ops
+  rules:
+    - if: $PIPELINE_TYPE == "ops" && $CI_COMMIT_REF_PROTECTED == "true"
+      when: manual
+    - when: never
+  script:
+    - cd deploy
+    - ansible-playbook -i inventory.ini rebalance.yml
+
+rolling-maintenance:
+  extends: .ansible-base
+  stage: ops
+  rules:
+    - if: $PIPELINE_TYPE == "ops" && $CI_COMMIT_REF_PROTECTED == "true"
+      when: manual
+    - when: never
+  script:
+    - cd deploy
+    - ansible-playbook -i inventory.ini rolling-maintenance.yml
+
+decommission:
+  extends: .ansible-base
+  stage: ops
+  rules:
+    - if: $PIPELINE_TYPE == "ops" && $CONFIRM == "YES_DESTROY" && $TARGET != "" && $CI_COMMIT_REF_PROTECTED == "true"
+      when: manual
+    - when: never
+  script:
+    - cd deploy
+    - ansible-playbook -i inventory.ini decommission.yml -e target=$TARGET
+
+rotate-secrets:
+  extends: .ansible-base
+  stage: ops
+  rules:
+    - if: $PIPELINE_TYPE == "ops" && $CI_COMMIT_REF_PROTECTED == "true"
+      when: manual
+    - when: never
+  script:
+    - cd deploy
+    - ansible-playbook -i inventory.ini playbook.yml --tags app
+    - ssh ubuntu@vm1.waltzing.internal.maurice-cloud.fr
+        "sudo k3s kubectl -n imgr rollout restart deployment/backend deployment/worker"

@@ -17,13 +17,17 @@ variables:
   KUSTOMIZE_VERSION: "5.4.3"
   PIPELINE_TYPE:
     value: "standard"
-    description: "Type de pipeline. standard = CI normale (push, MR, deploy, bootstrap). ops = drain/uncordon/maintenance/rebalance/decommission/rotate-secrets uniquement."
+    description: "Type de pipeline. standard = CI normale (push, MR, deploy, bootstrap). ops = drain/uncordon/cordon-only/maintenance/rebalance/rolling-maintenance/decommission/rotate-secrets uniquement."
   TARGET:
     value: "vm2"
-    description: "VM cible (vm1, vm2 ou vm3) pour drain, uncordon, maintenance, decommission. Utilisé avec PIPELINE_TYPE=ops."
+    description: "VM cible (vm1, vm2 ou vm3) pour drain, uncordon, cordon-only, maintenance, decommission. Utilisé avec PIPELINE_TYPE=ops."
   CONFIRM:
     value: ""
     description: "Pour decommission uniquement, tape exactement YES_DESTROY pour confirmer."
+
+include:
+  - local: 'ci/standard.yml'
+  - local: 'ci/ops.yml'
 
 .lint-base:
   stage: lint
@@ -36,35 +40,6 @@ variables:
     PIP_CACHE_DIR: $CI_PROJECT_DIR/.pipcache
     PIP_DISABLE_PIP_VERSION_CHECK: "1"
 
-yamllint:
-  extends: .lint-base
-  cache:
-    key: pip-yamllint-v1
-    paths:
-      - .pipcache/
-  script:
-    - pip install --quiet "yamllint==${YAMLLINT_VERSION}"
-    - yamllint --version
-    - yamllint --strict --format=parsable .
-
-ansible-lint:
-  extends: .lint-base
-  cache:
-    key: pip-ansible-lint-v1
-    paths:
-      - .pipcache/
-  script:
-    - pip install --quiet "ansible==${ANSIBLE_VERSION}" "ansible-lint==${ANSIBLE_LINT_VERSION}"
-    - ansible-lint --version
-    - ansible-lint --offline --strict --format=pep8
-        deploy/playbook.yml
-        deploy/maintenance.yml
-        deploy/decommission.yml
-        deploy/drain.yml
-        deploy/uncordon.yml
-        deploy/rebalance.yml
-
-
 .kaniko-base:
   stage: build
   image:
@@ -73,45 +48,6 @@ ansible-lint:
   rules:
     - if: $PIPELINE_TYPE == "standard" && $CI_COMMIT_REF_PROTECTED == "true"
     - when: never
-
-build-backend:
-  extends: .kaniko-base
-  script:
-    - mkdir -p /kaniko/.docker
-    - echo "{\"auths\":{\"${REGISTRY}\":{\"auth\":\"$(printf '%s:%s' "${REGISTRY_USER}" "${REGISTRY_PASSWORD}" | base64 | tr -d '\n')\"}}}" > /kaniko/.docker/config.json
-    # BusyBox date in kaniko-debug has no -Iseconds
-    - export BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-    - /kaniko/executor
-      --context "${CI_PROJECT_DIR}"
-      --dockerfile "${CI_PROJECT_DIR}/docker/Dockerfile.api"
-      --target backend
-      --build-arg GIT_SHA=$CI_COMMIT_SHORT_SHA
-      --build-arg BUILD_DATE=$BUILD_DATE
-      --destination "${IMAGE_BASE}/backend:${CI_COMMIT_SHORT_SHA}"
-      --destination "${IMAGE_BASE}/backend:latest"
-
-build-worker:
-  extends: .kaniko-base
-  script:
-    - mkdir -p /kaniko/.docker
-    - echo "{\"auths\":{\"${REGISTRY}\":{\"auth\":\"$(printf '%s:%s' "${REGISTRY_USER}" "${REGISTRY_PASSWORD}" | base64 | tr -d '\n')\"}}}" > /kaniko/.docker/config.json
-    - /kaniko/executor
-      --context "${CI_PROJECT_DIR}"
-      --dockerfile "${CI_PROJECT_DIR}/docker/Dockerfile.api"
-      --target worker
-      --destination "${IMAGE_BASE}/worker:${CI_COMMIT_SHORT_SHA}"
-      --destination "${IMAGE_BASE}/worker:latest"
-
-build-frontend:
-  extends: .kaniko-base
-  script:
-    - mkdir -p /kaniko/.docker
-    - echo "{\"auths\":{\"${REGISTRY}\":{\"auth\":\"$(printf '%s:%s' "${REGISTRY_USER}" "${REGISTRY_PASSWORD}" | base64 | tr -d '\n')\"}}}" > /kaniko/.docker/config.json
-    - /kaniko/executor
-      --context "${CI_PROJECT_DIR}"
-      --dockerfile "${CI_PROJECT_DIR}/docker/Dockerfile.web"
-      --destination "${IMAGE_BASE}/frontend:${CI_COMMIT_SHORT_SHA}"
-      --destination "${IMAGE_BASE}/frontend:latest"
 
 .trivy-scan:
   stage: scan
@@ -137,45 +73,6 @@ build-frontend:
     paths:
       - trivy-*.txt
 
-scan-backend:
-  extends: .trivy-scan
-  needs:
-    - build-backend
-  script:
-    - trivy --version
-    - trivy image
-      --severity HIGH,CRITICAL
-      --ignore-unfixed
-      --exit-code 1
-      --scanners vuln
-      $IMAGE_BASE/backend:$CI_COMMIT_SHORT_SHA | tee trivy-backend.txt
-
-scan-worker:
-  extends: .trivy-scan
-  needs:
-    - build-worker
-  script:
-    - trivy --version
-    - trivy image
-      --severity HIGH,CRITICAL
-      --ignore-unfixed
-      --exit-code 1
-      --scanners vuln
-      $IMAGE_BASE/worker:$CI_COMMIT_SHORT_SHA | tee trivy-worker.txt
-
-scan-frontend:
-  extends: .trivy-scan
-  needs:
-    - build-frontend
-  script:
-    - trivy --version
-    - trivy image
-      --severity HIGH,CRITICAL
-      --ignore-unfixed
-      --exit-code 1
-      --scanners vuln
-      $IMAGE_BASE/frontend:$CI_COMMIT_SHORT_SHA | tee trivy-frontend.txt
-
 .kustomize-runner:
   image: alpine:latest
   cache:
@@ -194,122 +91,6 @@ scan-frontend:
     - mkdir -p ~/.ssh && chmod 700 ~/.ssh
     - echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519 && chmod 600 ~/.ssh/id_ed25519
     - ssh-keyscan -H bastion.maurice-cloud.fr >> ~/.ssh/known_hosts 2>/dev/null
-
-dry-run-manifests:
-  extends: .kustomize-runner
-  stage: validate
-  rules:
-    - if: $PIPELINE_TYPE == "standard" && $CI_COMMIT_REF_PROTECTED == "true"
-    - when: never
-  needs:
-    - yamllint
-    - ansible-lint
-    - build-backend
-    - build-worker
-    - build-frontend
-    - scan-backend
-    - scan-worker
-    - scan-frontend
-  artifacts:
-    when: always
-    expire_in: 4 weeks
-    paths:
-      - dry-run-output.txt
-      - manifest-bundle.yml
-  script:
-    - set -e
-    - set -o pipefail
-    - ': > dry-run-output.txt'
-    - kustomize build k8s/overlays/prod > manifest-bundle.yml
-    - wc -l manifest-bundle.yml
-    - |
-      for VM in vm1.waltzing.internal.maurice-cloud.fr vm2.waltzing.internal.maurice-cloud.fr vm3.waltzing.internal.maurice-cloud.fr; do
-        echo "=== Trying $VM ===" | tee -a dry-run-output.txt
-        if ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 \
-              -o ProxyJump=student@bastion.maurice-cloud.fr \
-              ubuntu@$VM \
-              "export KUBECONFIG=/home/ubuntu/.kube/config && kubectl apply --dry-run=server -f -" \
-              < manifest-bundle.yml 2>&1 | tee -a dry-run-output.txt; then
-          echo "=== Dry-run succeeded via $VM ===" | tee -a dry-run-output.txt
-          exit 0
-        fi
-        echo "=== $VM failed, trying next ===" | tee -a dry-run-output.txt
-      done
-      echo "=== All nodes unreachable or dry-run failed ===" | tee -a dry-run-output.txt
-      exit 1
-
-deploy:
-  extends: .kustomize-runner
-  stage: deploy
-  needs:
-    - dry-run-manifests
-  rules:
-    - if: $PIPELINE_TYPE == "standard" && $CI_COMMIT_REF_PROTECTED == "true"
-      when: manual
-    - when: never
-  script:
-    - set -e
-    - set -o pipefail
-    - cd k8s/overlays/prod
-    - kustomize edit set image $IMAGE_BASE/backend=$IMAGE_BASE/backend:$CI_COMMIT_SHORT_SHA
-    - kustomize edit set image $IMAGE_BASE/worker=$IMAGE_BASE/worker:$CI_COMMIT_SHORT_SHA
-    - kustomize edit set image $IMAGE_BASE/frontend=$IMAGE_BASE/frontend:$CI_COMMIT_SHORT_SHA
-    - kustomize build . > $CI_PROJECT_DIR/manifest-bundle.yml
-    - cd $CI_PROJECT_DIR
-    - wc -l manifest-bundle.yml
-    - |
-      # Apply manifests and wait for rollout
-      DEPLOY_CMD='set -e
-        export KUBECONFIG=/home/ubuntu/.kube/config
-        kubectl apply -f -
-        kubectl -n imgr rollout status deployment/backend  --timeout=120s
-        kubectl -n imgr rollout status deployment/worker   --timeout=120s
-        kubectl -n imgr rollout status deployment/frontend --timeout=120s'
-
-      # Real POST/GET smoke
-      SMOKE_CMD='set -e
-        export KUBECONFIG=/home/ubuntu/.kube/config
-        echo iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNgYGBgAAAABQABh6FO1AAAAABJRU5ErkJggg== | base64 -d > /tmp/smoke.png
-        RES=$(curl -fsS -F file=@/tmp/smoke.png http://localhost:8080/image)
-        echo "upload response: $RES"
-        ID=$(echo "$RES" | python3 -c "import json,sys;print(json.load(sys.stdin)[\"id\"])")
-        curl -fsSL -o /dev/null http://localhost:8080/image/$ID
-        curl -fsS  -o /dev/null http://localhost:8081/
-        curl -fsS  http://localhost:8080/health | python3 -m json.tool'
-
-      # Auto-rollback on smoke failure
-      ROLLBACK_CMD='export KUBECONFIG=/home/ubuntu/.kube/config
-        kubectl -n imgr rollout undo deployment/backend  || true
-        kubectl -n imgr rollout undo deployment/worker   || true
-        kubectl -n imgr rollout undo deployment/frontend || true
-        kubectl -n imgr rollout status deployment/backend  --timeout=120s
-        kubectl -n imgr rollout status deployment/worker   --timeout=120s
-        kubectl -n imgr rollout status deployment/frontend --timeout=120s'
-
-      for VM in vm1.waltzing.internal.maurice-cloud.fr vm2.waltzing.internal.maurice-cloud.fr vm3.waltzing.internal.maurice-cloud.fr; do
-        echo "=== Trying $VM ==="
-        if ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 \
-              -o ProxyJump=student@bastion.maurice-cloud.fr \
-              ubuntu@$VM "$DEPLOY_CMD" < manifest-bundle.yml; then
-          echo "=== Apply + rollout succeeded via $VM ==="
-          echo "=== Postdeploy smoke ==="
-          if ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 \
-                -o ProxyJump=student@bastion.maurice-cloud.fr \
-                ubuntu@$VM "$SMOKE_CMD"; then
-            echo "=== Smoke PASSED ==="
-            exit 0
-          fi
-          echo "=== Smoke FAILED, auto-rollback ==="
-          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 \
-              -o ProxyJump=student@bastion.maurice-cloud.fr \
-              ubuntu@$VM "$ROLLBACK_CMD" || true
-          exit 1
-        fi
-        echo "=== $VM unreachable, trying next ==="
-      done
-      echo "=== All nodes unreachable ==="
-      exit 1
-
 
 .ansible-base:
   image: alpine:3.20
@@ -334,84 +115,3 @@ deploy:
           StrictHostKeyChecking no
       EOF
     - chmod 600 ~/.ssh/config
-
-bootstrap:
-  extends: .ansible-base
-  stage: bootstrap
-  needs:
-    - dry-run-manifests
-  rules:
-    - if: $PIPELINE_TYPE == "standard" && $CI_COMMIT_REF_PROTECTED == "true"
-      when: manual
-    - when: never
-  script:
-    - cd deploy
-    - ansible-playbook -i inventory.ini playbook.yml
-
-drain:
-  extends: .ansible-base
-  stage: ops
-  rules:
-    - if: $PIPELINE_TYPE == "ops" && $CI_COMMIT_REF_PROTECTED == "true"
-      when: manual
-    - when: never
-  script:
-    - cd deploy
-    - ansible-playbook -i inventory.ini drain.yml -e target=$TARGET
-
-uncordon:
-  extends: .ansible-base
-  stage: ops
-  rules:
-    - if: $PIPELINE_TYPE == "ops" && $CI_COMMIT_REF_PROTECTED == "true"
-      when: manual
-    - when: never
-  script:
-    - cd deploy
-    - ansible-playbook -i inventory.ini uncordon.yml -e target=$TARGET
-
-maintenance:
-  extends: .ansible-base
-  stage: ops
-  rules:
-    - if: $PIPELINE_TYPE == "ops" && $CI_COMMIT_REF_PROTECTED == "true"
-      when: manual
-    - when: never
-  script:
-    - cd deploy
-    - ansible-playbook -i inventory.ini maintenance.yml -e target=$TARGET
-
-rebalance:
-  extends: .ansible-base
-  stage: ops
-  rules:
-    - if: $PIPELINE_TYPE == "ops" && $CI_COMMIT_REF_PROTECTED == "true"
-      when: manual
-    - when: never
-  script:
-    - cd deploy
-    - ansible-playbook -i inventory.ini rebalance.yml
-
-decommission:
-  extends: .ansible-base
-  stage: ops
-  rules:
-    - if: $PIPELINE_TYPE == "ops" && $CONFIRM == "YES_DESTROY" && $TARGET != "" && $CI_COMMIT_REF_PROTECTED == "true"
-      when: manual
-    - when: never
-  script:
-    - cd deploy
-    - ansible-playbook -i inventory.ini decommission.yml -e target=$TARGET
-
-rotate-secrets:
-  extends: .ansible-base
-  stage: ops
-  rules:
-    - if: $PIPELINE_TYPE == "ops" && $CI_COMMIT_REF_PROTECTED == "true"
-      when: manual
-    - when: never
-  script:
-    - cd deploy
-    - ansible-playbook -i inventory.ini playbook.yml --tags app
-    - ssh ubuntu@vm1.waltzing.internal.maurice-cloud.fr
-        "sudo k3s kubectl -n imgr rollout restart deployment/backend deployment/worker"
