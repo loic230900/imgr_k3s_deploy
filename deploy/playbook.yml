@@ -1,3 +1,21 @@
+- name: Pre-flight, vérifier que les variables d'environnement requises sont définies
+  hosts: localhost
+  gather_facts: false
+  connection: local
+  tasks:
+    - name: Assert env vars sensibles présentes
+      ansible.builtin.assert:
+        that:
+          - lookup('env', 'IMGR_CELERY_BROKER_URL') | length > 0
+          - lookup('env', 'IMGR_AWS_ACCESS_KEY_ID') | length > 0
+          - lookup('env', 'IMGR_AWS_SECRET_ACCESS_KEY') | length > 0
+          - lookup('env', 'REGISTRY_USER') | length > 0
+          - lookup('env', 'REGISTRY_PASSWORD') | length > 0
+        fail_msg: >-
+          Variables d'environnement manquantes. Soit sourcer deploy/.env
+          (cp deploy/.env.example deploy/.env, remplir les valeurs, source),
+          soit lancer depuis un job CI où les GitLab CI Variables sont injectées.
+
 - name: Base setup on all nodes
   hosts: k3s
   become: true

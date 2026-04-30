@@ -4,6 +4,8 @@ stages:
   - scan
   - validate
   - deploy
+  - ops
+  - bootstrap
 
 variables:
   REGISTRY: registry.app.unistra.fr
@@ -293,3 +295,121 @@ deploy:
       done
       echo "=== All nodes unreachable ==="
       exit 1
+
+
+.ansible-base:
+  image: alpine:3.20
+  only:
+    - main
+  before_script:
+    - apk add --no-cache ansible-core openssh-client bash
+    - mkdir -p ~/.ssh && chmod 700 ~/.ssh
+    - echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+    - chmod 600 ~/.ssh/id_ed25519
+    - ssh-keyscan -H bastion.maurice-cloud.fr >> ~/.ssh/known_hosts 2>/dev/null
+    - |
+      cat > ~/.ssh/config <<EOF
+      Host bastion-cloud
+          Hostname bastion.maurice-cloud.fr
+          User student
+          StrictHostKeyChecking no
+      Host vm1 vm2 vm3
+          Hostname %h.waltzing.internal.maurice-cloud.fr
+          User ubuntu
+          ProxyJump bastion-cloud
+          IdentityFile ~/.ssh/id_ed25519
+          StrictHostKeyChecking no
+      EOF
+    - chmod 600 ~/.ssh/config
+
+bootstrap:
+  extends: .ansible-base
+  stage: bootstrap
+  when: manual
+  rules:
+    - if: $CI_COMMIT_REF_PROTECTED == "true"
+  script:
+    - cd deploy
+    - ansible-playbook -i inventory.ini playbook.yml
+
+drain:
+  extends: .ansible-base
+  stage: ops
+  when: manual
+  rules:
+    - if: $CI_COMMIT_REF_PROTECTED == "true"
+  variables:
+    TARGET:
+      value: "vm2"
+      description: "VM à drainer (vm1, vm2 ou vm3)"
+  script:
+    - cd deploy
+    - ansible-playbook -i inventory.ini drain.yml -e target=$TARGET
+
+uncordon:
+  extends: .ansible-base
+  stage: ops
+  when: manual
+  rules:
+    - if: $CI_COMMIT_REF_PROTECTED == "true"
+  variables:
+    TARGET:
+      value: "vm2"
+      description: "VM à réactiver"
+  script:
+    - cd deploy
+    - ansible-playbook -i inventory.ini uncordon.yml -e target=$TARGET
+
+maintenance:
+  extends: .ansible-base
+  stage: ops
+  when: manual
+  rules:
+    - if: $CI_COMMIT_REF_PROTECTED == "true"
+  variables:
+    TARGET:
+      value: "vm2"
+      description: "VM à drainer + reboot + uncordon"
+  script:
+    - cd deploy
+    - ansible-playbook -i inventory.ini maintenance.yml -e target=$TARGET
+
+rebalance:
+  extends: .ansible-base
+  stage: ops
+  when: manual
+  rules:
+    - if: $CI_COMMIT_REF_PROTECTED == "true"
+  script:
+    - cd deploy
+    - ansible-playbook -i inventory.ini rebalance.yml
+
+decommission:
+  extends: .ansible-base
+  stage: ops
+  variables:
+    TARGET:
+      value: ""
+      description: "VM à RETIRER définitivement (DESTRUCTIF)"
+    CONFIRM:
+      value: ""
+      description: "Tape exactement YES_DESTROY pour confirmer"
+  rules:
+    - if: $CI_COMMIT_REF_PROTECTED == "true" && $CONFIRM == "YES_DESTROY" && $TARGET != ""
+      when: manual
+    - when: never
+  script:
+    - cd deploy
+    - ansible-playbook -i inventory.ini decommission.yml -e target=$TARGET
+
+rotate-secrets:
+  extends: .ansible-base
+  stage: ops
+  when: manual
+  rules:
+    - if: $CI_COMMIT_REF_PROTECTED == "true"
+  script:
+    - cd deploy
+    - ansible-playbook -i inventory.ini playbook.yml --tags app
+    - ssh ubuntu@vm1.waltzing.internal.maurice-cloud.fr
+        "sudo k3s kubectl -n imgr rollout restart deployment/backend deployment/worker"
