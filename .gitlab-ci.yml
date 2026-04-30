@@ -94,6 +94,9 @@ include:
 
 .ansible-base:
   image: alpine:3.20
+  variables:
+    ANSIBLE_ROLES_PATH: ./roles
+    ANSIBLE_HOST_KEY_CHECKING: "False"
   before_script:
     - apk add --no-cache ansible-core openssh-client bash
     - ansible-galaxy collection install community.general ansible.posix

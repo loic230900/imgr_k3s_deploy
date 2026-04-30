@@ -27,6 +27,10 @@ ansible-lint:
     key: pip-ansible-lint-v1
     paths:
       - .pipcache/
+  variables:
+    PIP_CACHE_DIR: $CI_PROJECT_DIR/.pipcache
+    PIP_DISABLE_PIP_VERSION_CHECK: "1"
+    ANSIBLE_ROLES_PATH: ansible/roles
   script:
     - pip install --quiet "ansible==${ANSIBLE_VERSION}" "ansible-lint==${ANSIBLE_LINT_VERSION}"
     - ansible-lint --version
