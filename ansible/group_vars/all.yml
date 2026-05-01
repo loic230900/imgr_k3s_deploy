@@ -16,6 +16,8 @@ aws_region_name: "{{ lookup('env', 'IMGR_AWS_REGION_NAME') | default('eu-north-1
 registry_server: "{{ lookup('env', 'IMGR_REGISTRY_SERVER') | default('registry.app.unistra.fr', true) }}"
 
 # Configuration K3s etcd snapshots vers S3.
+# Schedule 24h pour limiter la facture S3 dans le cadre du
+# projet. En prod réelle on viserait 12h ou moins (RPO plus court).
 k3s_etcd_snapshot_schedule: "0 3 * * *"
 k3s_etcd_snapshot_retention: 7
 k3s_etcd_snapshot_s3_folder: "k3s-etcd-snapshots"
