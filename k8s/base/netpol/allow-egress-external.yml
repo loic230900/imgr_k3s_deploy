@@ -1,3 +1,4 @@
+# Backend + worker -> Internet (S3 :443, RabbitMQ AMQPS :5671). Bloque RFC1918.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
