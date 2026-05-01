@@ -45,7 +45,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: frontend
-          image: registry.app.unistra.fr/waltzing/projet-cloud-virt/frontend:36bf53b6
+          image: registry.app.unistra.fr/waltzing/projet-cloud-virt/frontend:placeholder
           ports:
             - containerPort: 8080
           readinessProbe:
