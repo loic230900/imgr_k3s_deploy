@@ -242,17 +242,3 @@ deploy:
       done
       echo "=== All nodes unreachable ==="
       exit 1
-
-
-bootstrap:
-  extends: .ansible-base
-  stage: bootstrap
-  needs:
-    - dry-run-manifests
-  rules:
-    - if: $PIPELINE_TYPE == "standard" && $CI_COMMIT_REF_PROTECTED == "true"
-      when: manual
-    - when: never
-  script:
-    - cd ansible
-    - ansible-playbook -i inventory.ini bootstrap.yml

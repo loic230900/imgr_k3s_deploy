@@ -55,3 +55,11 @@
     - app
   roles:
     - app
+
+- name: Smoke test E2E (upload + thumbnail + frontend + health, cleanup S3)
+  hosts: k3s
+  gather_facts: false
+  tags:
+    - smoke
+  roles:
+    - smoke_test

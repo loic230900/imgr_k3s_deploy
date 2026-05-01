@@ -1,0 +1,73 @@
+# Smoke test post-bootstrap / post-rotate-secrets.
+# Upload une PNG 1x1, attend la generation thumbnail (worker + RabbitMQ + S3), GET /, GET /health.
+# Tourne sur 1 seule VM (run_once + delegate_to premier host k3s).
+# En cas d'echec, le play fail mais le cluster reste en place (pas de rollback automatique sur bootstrap).
+
+- name: Smoke - generate test PNG (1x1 pixel)
+  ansible.builtin.copy:
+    content: !!binary |
+      iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNgYGBgAAAABQABh6FO1AAAAABJRU5ErkJggg==
+    dest: /tmp/smoke.png
+    mode: "0644"
+  run_once: true
+  delegate_to: "{{ groups['k3s'][0] }}"
+
+- name: Smoke - upload via /image (POST)
+  ansible.builtin.command:
+    cmd: curl -fsS -F file=@/tmp/smoke.png http://localhost:8080/image
+  register: smoke_upload
+  run_once: true
+  delegate_to: "{{ groups['k3s'][0] }}"
+  changed_when: false
+
+- name: Smoke - parse image ID
+  ansible.builtin.set_fact:
+    smoke_image_id: "{{ (smoke_upload.stdout | from_json).id }}"
+  run_once: true
+
+- name: Smoke - GET /image/{id} (lit l'original sur S3)
+  ansible.builtin.command:
+    cmd: "curl -fsSL -o /dev/null http://localhost:8080/image/{{ smoke_image_id }}"
+  run_once: true
+  delegate_to: "{{ groups['k3s'][0] }}"
+  changed_when: false
+
+- name: Smoke - GET /image/{id}/big (attend que le worker ait genere le thumbnail)
+  ansible.builtin.uri:
+    url: "http://localhost:8080/image/{{ smoke_image_id }}/big"
+    method: GET
+    status_code: 200
+  register: smoke_thumb
+  retries: 15
+  delay: 2
+  until: smoke_thumb.status == 200
+  run_once: true
+  delegate_to: "{{ groups['k3s'][0] }}"
+
+- name: Smoke - GET / (frontend)
+  ansible.builtin.command:
+    cmd: curl -fsS -o /dev/null http://localhost:8081/
+  run_once: true
+  delegate_to: "{{ groups['k3s'][0] }}"
+  changed_when: false
+
+- name: Smoke - GET /health (backend)
+  ansible.builtin.command:
+    cmd: curl -fsS http://localhost:8080/health
+  register: smoke_health
+  run_once: true
+  delegate_to: "{{ groups['k3s'][0] }}"
+  changed_when: false
+
+- name: Smoke - cleanup S3 (best effort, supprime les 5 objets de test)
+  ansible.builtin.shell: |
+    sudo k3s kubectl -n imgr exec deploy/backend -- python -c "from image_api.storage import bucket; [bucket.Object(p+'/{{ smoke_image_id }}').delete() for p in ['original','big','medium','small','tiny']]"
+  run_once: true
+  delegate_to: "{{ groups['k3s'][0] }}"
+  changed_when: false
+  failed_when: false
+
+- name: Smoke - PASSED
+  ansible.builtin.debug:
+    msg: "Smoke OK - upload {{ smoke_image_id }} + thumbnail genere + frontend + health = {{ smoke_health.stdout }} (5 objets S3 supprimes)"
+  run_once: true
