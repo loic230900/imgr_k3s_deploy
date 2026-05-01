@@ -16,7 +16,11 @@ variables:
   KUSTOMIZE_VERSION: "5.4.3"
   PIPELINE_TYPE:
     value: "standard"
-    description: "standard = livraison de code (lint, build, scan, deploy). ops = intervention infra (bootstrap, drain, uncordon, cordon-only, maintenance, rebalance, rolling-maintenance, decommission, reset-cluster, rotate-secrets)."
+    description: >-
+      standard = livraison de code (lint/build/scan/deploy).
+      ops = intervention infra (bootstrap, drain, uncordon, cordon-only,
+      maintenance, rebalance, rolling-maintenance, decommission,
+      reset-cluster, rotate-secrets).
   TARGET:
     value: "vm2"
     description: "VM cible (vm1, vm2, vm3) pour les jobs ops qui agissent sur un nœud spécifique. Ignoré par rolling-maintenance et reset-cluster."
