@@ -11,8 +11,6 @@ variables:
   IMAGE_BASE: $REGISTRY/waltzing/projet-cloud-virt
   TRIVY_VERSION: "0.55.2"
   YAMLLINT_VERSION: "1.35.1"
-  ANSIBLE_LINT_VERSION: "24.7.0"
-  ANSIBLE_VERSION: "10.5.0"
   KUSTOMIZE_VERSION: "5.4.3"
   PIPELINE_TYPE:
     value: "standard"
