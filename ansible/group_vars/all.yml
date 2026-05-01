@@ -1,3 +1,7 @@
+# Source de vérité: variables d'environnement (CI GitLab ou .env local).
+# Précédemment Ansible Vault, migré pour aligner avec le pipeline CI sans
+# duplication de secret material entre Vault et CI Variables.
+
 # Sensibles. Ces variables n'ont aucune valeur en clair dans le repo et
 # doivent être présentes dans l'environnement Ansible (CI ou .env).
 celery_broker_url: "{{ lookup('env', 'IMGR_CELERY_BROKER_URL') }}"

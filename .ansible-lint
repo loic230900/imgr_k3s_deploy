@@ -7,7 +7,7 @@ skip_list:
 exclude_paths:
   - .git/
   - .gitlab-ci.yml
-  - deploy/group_vars/all.yml
+  - ansible/group_vars/all.yml
   - k8s/
   - api/
   - web/
