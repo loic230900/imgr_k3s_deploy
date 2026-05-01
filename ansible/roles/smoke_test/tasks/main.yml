@@ -27,19 +27,19 @@
       - -F
       - file=@/tmp/smoke.png
       - http://localhost:8080/image
-  register: smoke_upload
+  register: smoke_test_upload
   changed_when: false
   run_once: true
   delegate_to: "{{ groups['k3s'][0] }}"
 
 - name: Smoke - parse image ID
   ansible.builtin.set_fact:
-    smoke_image_id: "{{ (smoke_upload.stdout | from_json).id }}"
+    smoke_test_image_id: "{{ (smoke_test_upload.stdout | from_json).id }}"
   run_once: true
 
 - name: Smoke - GET /image/{id} (lit l'original sur S3)
   ansible.builtin.uri:
-    url: "http://localhost:8080/image/{{ smoke_image_id }}"
+    url: "http://localhost:8080/image/{{ smoke_test_image_id }}"
     method: GET
     status_code: [200, 302]
   run_once: true
@@ -47,13 +47,13 @@
 
 - name: Smoke - GET /image/{id}/big (attend que le worker ait genere le thumbnail)
   ansible.builtin.uri:
-    url: "http://localhost:8080/image/{{ smoke_image_id }}/big"
+    url: "http://localhost:8080/image/{{ smoke_test_image_id }}/big"
     method: GET
     status_code: [200, 302]
-  register: smoke_thumb
+  register: smoke_test_thumb
   retries: 15
   delay: 2
-  until: smoke_thumb.status in [200, 302]
+  until: smoke_test_thumb.status in [200, 302]
   run_once: true
   delegate_to: "{{ groups['k3s'][0] }}"
 
@@ -71,7 +71,7 @@
     method: GET
     status_code: 200
     return_content: true
-  register: smoke_health
+  register: smoke_test_health
   run_once: true
   delegate_to: "{{ groups['k3s'][0] }}"
 
@@ -90,7 +90,7 @@
       - -c
       - >-
         from image_api.storage import bucket;
-        [bucket.Object(p+'/{{ smoke_image_id }}').delete()
+        [bucket.Object(p+'/{{ smoke_test_image_id }}').delete()
         for p in ['original','big','medium','small','tiny']]
   run_once: true
   delegate_to: "{{ groups['k3s'][0] }}"
@@ -100,6 +100,6 @@
 - name: Smoke - PASSED
   ansible.builtin.debug:
     msg: >-
-      Smoke OK - upload {{ smoke_image_id }} + thumbnail genere
-      + frontend + health = {{ smoke_health.content }} (5 objets S3 supprimes)
+      Smoke OK - upload {{ smoke_test_image_id }} + thumbnail genere
+      + frontend + health = {{ smoke_test_health.content }} (5 objets S3 supprimes)
   run_once: true

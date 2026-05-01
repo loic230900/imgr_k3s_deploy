@@ -17,7 +17,7 @@
     ip -o addr show | grep '{{ vxlan_network }}\.' | awk '{print $2}' | head -1
   args:
     executable: /bin/bash
-  register: vxlan_iface
+  register: keepalived_vxlan_iface
   changed_when: false
   check_mode: false
 

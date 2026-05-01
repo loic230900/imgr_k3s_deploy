@@ -1,7 +1,7 @@
 - name: Check if K3s is already installed
   stat:
     path: /usr/local/bin/k3s
-  register: k3s_binary
+  register: k3s_init_binary
 
 - name: Detect VXLAN interface
   shell: |
@@ -9,14 +9,14 @@
     ip -o addr show | grep '{{ vxlan_network }}\.' | awk '{print $2}' | head -1
   args:
     executable: /bin/bash
-  register: vxlan_iface
+  register: k3s_init_vxlan_iface
   changed_when: false
   check_mode: false
 
 - name: Fail if VXLAN interface not found
   fail:
     msg: "No interface found with IP in {{ vxlan_network }}.0/24"
-  when: vxlan_iface.stdout == ""
+  when: k3s_init_vxlan_iface.stdout == ""
 
 - name: Install K3s (first server, cluster-init)
   shell: |
@@ -25,30 +25,30 @@
       --cluster-init \
       --disable=traefik \
       --tls-san={{ floating_ip }} \
-      --flannel-iface={{ vxlan_iface.stdout }} \
+      --flannel-iface={{ k3s_init_vxlan_iface.stdout }} \
       --node-ip={{ k3s_server_ip }} \
       --service-node-port-range=8000-32767
   args:
     executable: /bin/bash
-  when: not k3s_binary.stat.exists
-  changed_when: not k3s_binary.stat.exists
+  when: not k3s_init_binary.stat.exists
+  changed_when: not k3s_init_binary.stat.exists
 
 - name: Wait for K3s to be ready
   command: k3s kubectl get nodes
-  register: k3s_ready
+  register: k3s_init_ready
   retries: 30
   delay: 5
-  until: k3s_ready.rc == 0
+  until: k3s_init_ready.rc == 0
   changed_when: false
 
 - name: Read K3s join token
   slurp:
     src: /var/lib/rancher/k3s/server/node-token
-  register: k3s_token_raw
+  register: k3s_init_token_raw
 
 - name: Store K3s token as fact
   set_fact:
-    k3s_token: "{{ k3s_token_raw.content | b64decode | trim }}"
+    k3s_init_token: "{{ k3s_init_token_raw.content | b64decode | trim }}"
 
 - name: Create .kube directory for ubuntu user
   file:

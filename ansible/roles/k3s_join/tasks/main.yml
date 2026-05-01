@@ -1,7 +1,7 @@
 - name: Check if K3s is already installed
   stat:
     path: /usr/local/bin/k3s
-  register: k3s_binary
+  register: k3s_join_binary
 
 - name: Detect VXLAN interface
   shell: |
@@ -9,37 +9,37 @@
     ip -o addr show | grep '{{ vxlan_network }}\.' | awk '{print $2}' | head -1
   args:
     executable: /bin/bash
-  register: vxlan_iface
+  register: k3s_join_vxlan_iface
   changed_when: false
   check_mode: false
 
 - name: Fail if VXLAN interface not found
   fail:
     msg: "No interface found with IP in {{ vxlan_network }}.0/24"
-  when: vxlan_iface.stdout == ""
+  when: k3s_join_vxlan_iface.stdout == ""
 
 - name: Join K3s cluster as server
   shell: |
     set -o pipefail
     curl -sfL https://get.k3s.io | K3S_URL="https://{{ k3s_server_ip }}:6443" \
-      K3S_TOKEN="{{ hostvars['vm1'].k3s_token }}" \
+      K3S_TOKEN="{{ hostvars['vm1'].k3s_init_token }}" \
       INSTALL_K3S_EXEC="server" sh -s - \
       --disable=traefik \
       --tls-san={{ floating_ip }} \
-      --flannel-iface={{ vxlan_iface.stdout }} \
+      --flannel-iface={{ k3s_join_vxlan_iface.stdout }} \
       --node-ip={{ vxlan_network }}.{{ node_ip_suffix }} \
       --service-node-port-range=8000-32767
   args:
     executable: /bin/bash
-  when: not k3s_binary.stat.exists
-  changed_when: not k3s_binary.stat.exists
+  when: not k3s_join_binary.stat.exists
+  changed_when: not k3s_join_binary.stat.exists
 
 - name: Wait for node to be ready
   command: k3s kubectl get nodes
-  register: k3s_ready
+  register: k3s_join_ready
   retries: 30
   delay: 5
-  until: k3s_ready.rc == 0
+  until: k3s_join_ready.rc == 0
   changed_when: false
 
 - name: Create .kube directory for ubuntu user
