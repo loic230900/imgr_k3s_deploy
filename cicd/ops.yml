@@ -113,7 +113,7 @@ rotate-secrets:
   script:
     - cd ansible
     - ansible-playbook -i inventory.ini bootstrap.yml --tags app
-    - ssh ubuntu@vm1.waltzing.internal.maurice-cloud.fr
+    - ssh vm1
         "sudo k3s kubectl -n imgr rollout restart deployment/backend deployment/worker
          && sudo k3s kubectl -n imgr rollout status deployment/backend deployment/worker --timeout=180s"
     - ansible-playbook -i inventory.ini bootstrap.yml --tags smoke
