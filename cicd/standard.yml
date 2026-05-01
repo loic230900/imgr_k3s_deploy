@@ -49,8 +49,6 @@ ansible-lint:
 build-backend:
   extends: .kaniko-base
   script:
-    - mkdir -p /kaniko/.docker
-    - echo "{\"auths\":{\"${REGISTRY}\":{\"auth\":\"$(printf '%s:%s' "${REGISTRY_USER}" "${REGISTRY_PASSWORD}" | base64 | tr -d '\n')\"}}}" > /kaniko/.docker/config.json
     # BusyBox date in kaniko-debug has no -Iseconds
     - export BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
     - /kaniko/executor
@@ -65,8 +63,6 @@ build-backend:
 build-worker:
   extends: .kaniko-base
   script:
-    - mkdir -p /kaniko/.docker
-    - echo "{\"auths\":{\"${REGISTRY}\":{\"auth\":\"$(printf '%s:%s' "${REGISTRY_USER}" "${REGISTRY_PASSWORD}" | base64 | tr -d '\n')\"}}}" > /kaniko/.docker/config.json
     - /kaniko/executor
       --context "${CI_PROJECT_DIR}"
       --dockerfile "${CI_PROJECT_DIR}/docker/Dockerfile.api"
@@ -77,8 +73,6 @@ build-worker:
 build-frontend:
   extends: .kaniko-base
   script:
-    - mkdir -p /kaniko/.docker
-    - echo "{\"auths\":{\"${REGISTRY}\":{\"auth\":\"$(printf '%s:%s' "${REGISTRY_USER}" "${REGISTRY_PASSWORD}" | base64 | tr -d '\n')\"}}}" > /kaniko/.docker/config.json
     - /kaniko/executor
       --context "${CI_PROJECT_DIR}"
       --dockerfile "${CI_PROJECT_DIR}/docker/Dockerfile.web"

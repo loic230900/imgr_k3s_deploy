@@ -51,6 +51,11 @@ include:
   rules:
     - if: $PIPELINE_TYPE == "standard" && $CI_COMMIT_REF_PROTECTED == "true"
     - when: never
+  before_script:
+    # DOCKER_AUTH_CONFIG (variable CI) contient les auths Docker Hub + registre Unistra,
+    # kaniko lit /kaniko/.docker/config.json pour les pulls de base images et le push.
+    - mkdir -p /kaniko/.docker
+    - echo "$DOCKER_AUTH_CONFIG" > /kaniko/.docker/config.json
 
 .trivy-scan:
   stage: scan
