@@ -21,6 +21,8 @@
       ansible.builtin.set_fact:
         control_host: "{{ groups['k3s'] | difference([inventory_hostname]) | first }}"
 
+    # control_host peut être un node fraîchement rebooté à l'itération précédente,
+    # son apiserver peut répondre ServiceUnavailable le temps que le cache se peuple.
     - name: Pre-flight, fetch cluster nodes JSON
       ansible.builtin.command:
         cmd: k3s kubectl get nodes -o json
@@ -28,6 +30,11 @@
       changed_when: false
       check_mode: false
       delegate_to: "{{ control_host }}"
+      retries: 30
+      delay: 2
+      until:
+        - nodes_json.rc == 0
+        - (nodes_json.stdout | from_json).get('items', []) | length >= 3
 
     - name: Pre-flight, assert at least 3 Ready nodes before drain
       ansible.builtin.assert:
