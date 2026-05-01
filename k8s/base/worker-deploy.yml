@@ -21,6 +21,16 @@ spec:
     spec:
       # Celery task_time_limit (120s) : un resize en cours finit avant SIGKILL.
       terminationGracePeriodSeconds: 130
+      # tolerationSeconds=60 (default K8s 300). Migration plus rapide sur cluster stable.
+      tolerations:
+        - key: node.kubernetes.io/not-ready
+          operator: Exists
+          effect: NoExecute
+          tolerationSeconds: 60
+        - key: node.kubernetes.io/unreachable
+          operator: Exists
+          effect: NoExecute
+          tolerationSeconds: 60
       affinity:
         podAntiAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:
