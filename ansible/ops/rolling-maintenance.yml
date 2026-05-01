@@ -1,5 +1,17 @@
 # Drain + reboot + uncordon de toutes les VM, séquentiellement (serial: 1).
 # Usage: ansible-playbook -i ansible/inventory.ini ansible/ops/rolling-maintenance.yml
+
+- name: Pre-snapshot etcd vers S3 (filet avant rolling)
+  hosts: k3s[0]
+  become: true
+  gather_facts: false
+  tasks:
+    # K3s suffixe --name avec un timestamp, snapshot pousse vers S3 via config.yaml.
+    - name: Snapshot etcd
+      ansible.builtin.command:
+        cmd: k3s etcd-snapshot save --name pre-rolling
+      changed_when: true
+
 - name: Rolling maintenance, toutes les VM séquentiellement
   hosts: k3s
   become: true
@@ -8,14 +20,6 @@
   vars:
     drain_timeout: 180
     reboot_timeout: 600
-  pre_tasks:
-    # K3s suffixe --name avec un timestamp, snapshot pousse vers S3 via config.yaml.
-    - name: Pre-snapshot etcd vers S3 (run once, sur le premier node)
-      ansible.builtin.command:
-        cmd: k3s etcd-snapshot save --name pre-rolling
-      run_once: true
-      delegate_to: "{{ groups['k3s'][0] }}"
-      changed_when: true
   tasks:
     - name: Pick a control-plane node that is not the target
       ansible.builtin.set_fact:
