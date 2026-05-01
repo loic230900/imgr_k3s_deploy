@@ -15,24 +15,26 @@
   run_once: true
   delegate_to: "{{ groups['k3s'][0] }}"
 
-- name: "Smoke: upload via /image (POST multipart)"
-  ansible.builtin.uri:
-    url: http://localhost:8080/image
-    method: POST
-    body_format: form-multipart
-    body:
-      file:
-        filename: /tmp/smoke.png
-        mime_type: image/png
-    status_code: [200, 201]
-    return_content: true
+- name: "Smoke: upload via /image (POST multipart, curl sur la VM)"
+  # uri/form-multipart resout filename cote controller (action plugin),
+  # donc on passe par curl pour rester sur vm1 ou la PNG existe.
+  ansible.builtin.command:
+    argv:
+      - curl
+      - -fsS
+      - -X
+      - POST
+      - -F
+      - file=@/tmp/smoke.png
+      - http://localhost:8080/image
   register: smoke_upload
+  changed_when: false
   run_once: true
   delegate_to: "{{ groups['k3s'][0] }}"
 
 - name: Smoke - parse image ID
   ansible.builtin.set_fact:
-    smoke_image_id: "{{ smoke_upload.json.id }}"
+    smoke_image_id: "{{ (smoke_upload.stdout | from_json).id }}"
   run_once: true
 
 - name: Smoke - GET /image/{id} (lit l'original sur S3)
