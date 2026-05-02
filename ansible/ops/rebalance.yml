@@ -24,31 +24,15 @@
             | map('list') | select | list | length >= 3
         fail_msg: "Refusing to rebalance, fewer than 3 Ready nodes."
 
-    - name: Rolling restart with retry until balanced (skew <= 1) or max attempts
-      # La contrainte topologySpreadConstraints DoNotSchedule par service garantit
-      # 1-1-0 par service a chaque rolling restart, mais la distribution globale
-      # (somme des pods par node) peut rester desequilibree selon l'ordre de
-      # placement. On retry jusqu'a 3 fois pour converger vers 2-2-2; au-dela on
-      # accepte (la continuite reste assuree par la garantie per-service).
+    - name: Sequential rolling restart with skip-if-balanced
+      # Sequential + skip-if-balanced: un restart parallele relance les
+      # 3 evictions K8s simultanees et oscille; sequentiel laisse l'eviction
+      # topology-aware (soft global imgr) voir un etat stable et converger.
       ansible.builtin.shell:
         cmd: |
           set -o pipefail
-          max_attempts=3
-          attempt=0
-          while [ $attempt -lt $max_attempts ]; do
-            attempt=$((attempt + 1))
-            echo "=== Rebalance attempt $attempt/$max_attempts ==="
-            for app in backend worker frontend; do
-              k3s kubectl -n imgr rollout restart deployment/$app
-            done
-            for app in backend worker frontend; do
-              k3s kubectl -n imgr rollout status deployment/$app \
-                --timeout={{ rollout_timeout }}s
-            done
-            # Stabilisation: rollout status peut retourner success alors qu il
-            # reste des anciens pods en Terminating (qui restent en phase
-            # Running tant que la suppression n est pas effective).
-            sleep 5
+          measure_skew() {
+            local counts max_count min_count
             counts=$(k3s kubectl -n imgr get pods \
                        --field-selector=status.phase=Running \
                        --no-headers -o wide \
@@ -56,16 +40,36 @@
                      | sort -n)
             max_count=$(echo "$counts" | tail -1)
             min_count=$(echo "$counts" | head -1)
-            skew=$((max_count - min_count))
-            echo "Distribution skew = $skew (max=$max_count, min=$min_count)"
-            if [ $skew -le 1 ]; then
-              echo "Converged on attempt $attempt"
+            echo $((max_count - min_count))
+          }
+
+          max_attempts=3
+          attempt=0
+          while [ $attempt -lt $max_attempts ]; do
+            attempt=$((attempt + 1))
+            echo "=== Rebalance cycle $attempt/$max_attempts ==="
+            for app in backend worker frontend; do
+              sleep 3
+              cur_skew=$(measure_skew)
+              if [ "$cur_skew" -le 1 ]; then
+                echo "Already balanced (skew=$cur_skew), skipping $app"
+                continue
+              fi
+              echo "--- Restart $app (current skew=$cur_skew) ---"
+              k3s kubectl -n imgr rollout restart deployment/$app
+              k3s kubectl -n imgr rollout status deployment/$app \
+                --timeout={{ rollout_timeout }}s
+              sleep 5
+            done
+            final_skew=$(measure_skew)
+            echo "End of cycle $attempt: skew=$final_skew"
+            if [ "$final_skew" -le 1 ]; then
+              echo "Converged after $attempt cycle(s)"
               exit 0
             fi
           done
-          echo "WARNING: not converged after $max_attempts attempts (skew=$skew)."
-          echo "Per-service constraint is still enforced (1 pod per node max),"
-          echo "service continuity is preserved."
+          echo "WARNING: not converged after $max_attempts cycles (skew=$final_skew)."
+          echo "Per-service strict still enforced, continuity OK."
           exit 0
         executable: /bin/bash
       register: rebalance_loop
