@@ -63,3 +63,10 @@
     - smoke
   roles:
     - smoke_test
+
+# Au bootstrap aucune continuite a proteger (premier deploiement, pas de trafic):
+# rolling restart "gratuit" pour converger vers 2-2-2. La contrainte per-service
+# garantit 1-1-0 mais autorise les 3 services a choisir la meme paire de nodes
+# (vm1 vide possible). Ce play corrige la distribution globale en sortie de boot.
+- name: Rebalance pod distribution toward 2-2-2 (post-bootstrap)
+  import_playbook: ops/rebalance.yml
