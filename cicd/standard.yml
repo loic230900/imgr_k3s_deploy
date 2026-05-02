@@ -204,6 +204,21 @@ deploy:
         curl -fsS  -o /dev/null http://localhost:8081/
         curl -fsS  http://localhost:8080/health | python3 -m json.tool'
 
+      DIST_CMD='set -e
+        export KUBECONFIG=/home/ubuntu/.kube/config
+        echo "Pod distribution after deploy:"
+        kubectl -n imgr get pods --field-selector=status.phase=Running -o wide --no-headers \
+          | awk "{print \$7}" | sort | uniq -c
+        SKEW=$(kubectl -n imgr get pods --field-selector=status.phase=Running --no-headers -o wide \
+               | awk "{print \$7}" | sort | uniq -c | awk "{print \$1}" | sort -n \
+               | awk "NR==1{min=\$1} END{print \$1-min}")
+        if [ "$SKEW" -gt 1 ]; then
+          echo "INFO: skew=$SKEW > 1. Per-service constraint still enforced (continuity OK)."
+          echo "      To rebalance toward 2-2-2: trigger ops pipeline with rebalance job."
+        else
+          echo "Distribution balanced (skew=$SKEW)."
+        fi'
+
       # Auto-rollback on smoke failure
       ROLLBACK_CMD='export KUBECONFIG=/home/ubuntu/.kube/config
         kubectl -n imgr rollout undo deployment/backend  || true
@@ -224,6 +239,9 @@ deploy:
                 -o ProxyJump=student@bastion.maurice-cloud.fr \
                 ubuntu@$VM "$SMOKE_CMD"; then
             echo "=== Smoke PASSED ==="
+            ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 \
+                -o ProxyJump=student@bastion.maurice-cloud.fr \
+                ubuntu@$VM "$DIST_CMD" || true
             exit 0
           fi
           echo "=== Smoke FAILED, auto-rollback ==="
