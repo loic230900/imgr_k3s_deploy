@@ -24,52 +24,73 @@
             | map('list') | select | list | length >= 3
         fail_msg: "Refusing to rebalance, fewer than 3 Ready nodes."
 
-    - name: Sequential rolling restart with skip-if-balanced
-      # Sequential + skip-if-balanced: un restart parallele relance les
-      # 3 evictions K8s simultanees et oscille; sequentiel laisse l'eviction
-      # topology-aware (soft global imgr) voir un etat stable et converger.
+    - name: Targeted pod migration toward 2-2-2
+      # Algo deterministe: a chaque iteration, migrer 1 pod du noeud le
+      # plus charge vers le moins charge en delete + recreate. Le delete
+      # laisse la place au scheduler de placer le nouveau pod sur la VM
+      # cible via la per-service constraint. Convergence en skew/2 iter.
       ansible.builtin.shell:
         cmd: |
           set -o pipefail
-          measure_skew() {
-            local counts max_count min_count
-            counts=$(k3s kubectl -n imgr get pods \
-                       --field-selector=status.phase=Running \
-                       --no-headers -o wide \
-                     | awk '{print $7}' | sort | uniq -c | awk '{print $1}' \
-                     | sort -n)
-            max_count=$(echo "$counts" | tail -1)
-            min_count=$(echo "$counts" | head -1)
-            echo $((max_count - min_count))
+          NODES=$(k3s kubectl get nodes -o jsonpath='{.items[*].metadata.name}')
+
+          count_per_node() {
+            for n in $NODES; do
+              c=$(k3s kubectl -n imgr get pods \
+                    --field-selector=status.phase=Running \
+                    --no-headers -o wide 2>/dev/null \
+                  | awk -v node=$n '$7==node' | wc -l)
+              echo "$c $n"
+            done
           }
 
-          max_attempts=3
-          attempt=0
-          while [ $attempt -lt $max_attempts ]; do
-            attempt=$((attempt + 1))
-            echo "=== Rebalance cycle $attempt/$max_attempts ==="
-            for app in backend worker frontend; do
-              sleep 3
-              cur_skew=$(measure_skew)
-              if [ "$cur_skew" -le 1 ]; then
-                echo "Already balanced (skew=$cur_skew), skipping $app"
-                continue
-              fi
-              echo "--- Restart $app (current skew=$cur_skew) ---"
-              k3s kubectl -n imgr rollout restart deployment/$app
-              k3s kubectl -n imgr rollout status deployment/$app \
-                --timeout={{ rollout_timeout }}s
-              sleep 5
-            done
-            final_skew=$(measure_skew)
-            echo "End of cycle $attempt: skew=$final_skew"
-            if [ "$final_skew" -le 1 ]; then
-              echo "Converged after $attempt cycle(s)"
+          measure_skew() {
+            local maxc minc
+            maxc=$(count_per_node | awk '{print $1}' | sort -n | tail -1)
+            minc=$(count_per_node | awk '{print $1}' | sort -n | head -1)
+            echo $((maxc - minc))
+          }
+
+          extreme_node() { count_per_node | sort -n | $1 -1 | awk '{print $2}'; }
+
+          max_iter=10
+          i=0
+          while [ $i -lt $max_iter ]; do
+            i=$((i + 1))
+            s=$(measure_skew)
+            echo "[iter $i] skew=$s, distribution: $(count_per_node | xargs)"
+            if [ "$s" -le 1 ]; then
+              echo "Converged"
               exit 0
             fi
+            over=$(extreme_node tail)
+            under=$(extreme_node head)
+            moved=false
+            for app in backend worker frontend; do
+              pod_over=$(k3s kubectl -n imgr get pods -l app=$app \
+                         --field-selector=status.phase=Running \
+                         -o wide --no-headers \
+                         | awk -v o=$over '$7==o {print $1; exit}')
+              pod_under=$(k3s kubectl -n imgr get pods -l app=$app \
+                          --field-selector=status.phase=Running \
+                          -o wide --no-headers \
+                          | awk -v u=$under '$7==u {print $1; exit}')
+              if [ -n "$pod_over" ] && [ -z "$pod_under" ]; then
+                echo "  Migrate $app: $over -> $under (delete $pod_over)"
+                k3s kubectl -n imgr delete pod "$pod_over" --grace-period=15
+                k3s kubectl -n imgr wait --for=condition=Available \
+                  --timeout={{ rollout_timeout }}s deployment/$app
+                moved=true
+                sleep 3
+                break
+              fi
+            done
+            if [ "$moved" = false ]; then
+              echo "  No migration candidate from $over to $under, stopping"
+              break
+            fi
           done
-          echo "WARNING: not converged after $max_attempts cycles (skew=$final_skew)."
-          echo "Per-service strict still enforced, continuity OK."
+          echo "Final skew=$(measure_skew)"
           exit 0
         executable: /bin/bash
       register: rebalance_loop
