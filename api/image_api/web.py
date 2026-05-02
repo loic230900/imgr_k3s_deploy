@@ -24,7 +24,14 @@ if bucket.creation_date is None:
 
 app = Flask(__name__)
 FlaskInstrumentor().instrument_app(app)  # type: ignore[no-untyped-call]
-CORS(app)
+
+# Origines CORS lues depuis CORS_ALLOWED_ORIGINS, defaut "*" pour le dev local.
+# En prod, backend-deploy.yml fixe la valeur au domaine de l'app.
+_cors_env = os.environ.get("CORS_ALLOWED_ORIGINS", "*").strip()
+_cors_origins: str | list[str] = (
+    "*" if _cors_env == "*" else [o.strip() for o in _cors_env.split(",") if o.strip()]
+)
+CORS(app, origins=_cors_origins)
 
 
 @app.route("/")

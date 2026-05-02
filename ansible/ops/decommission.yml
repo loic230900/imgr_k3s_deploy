@@ -19,7 +19,7 @@
       check_mode: false
       delegate_to: "{{ control_host }}"
 
-    - name: Pre-flight, refuse if removing this node leaves under 2 Ready
+    - name: Pre-flight, require at least 3 Ready nodes before removing one
       ansible.builtin.assert:
         that:
           - >-
@@ -28,7 +28,11 @@
             | map('selectattr', 'type', 'equalto', 'Ready')
             | map('selectattr', 'status', 'equalto', 'True')
             | map('list') | select | list | length >= 3
-        fail_msg: "Refusing, removing {{ inventory_hostname }} would leave under 2 Ready nodes."
+        fail_msg: >-
+          Refusing to decommission {{ inventory_hostname }}: cluster
+          must have at least 3 Ready nodes before removing one
+          (would leave fewer than 2 and break etcd quorum, which
+          requires 2 of 3 nodes).
 
     - name: Cordon and drain the target node
       ansible.builtin.command:

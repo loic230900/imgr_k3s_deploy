@@ -65,6 +65,8 @@ spec:
               value: /home/appuser
             - name: UV_CACHE_DIR
               value: /tmp/uv-cache
+            - name: CORS_ALLOWED_ORIGINS
+              value: "https://waltzing.maurice-cloud.fr"
           readinessProbe:
             httpGet:
               path: /health

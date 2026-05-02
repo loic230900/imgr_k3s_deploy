@@ -38,4 +38,4 @@
       ansible.builtin.debug:
         msg: >-
           {{ inventory_hostname }} reseté. K3s désinstallé, keepalived arrêté.
-          Pour repartir de zéro: lancer un bootstrap (CI ou laptop).
+          Pour repartir de zéro: lancer un bootstrap (CI ou poste local).
