@@ -33,13 +33,15 @@
         cmd: |
           set -o pipefail
           NODES=$(k3s kubectl get nodes -o jsonpath='{.items[*].metadata.name}')
+          JP='{range .items[?(@.status.phase=="Running")]}{.metadata.name} {.spec.nodeName}{"\n"}{end}'
+
+          # Liste fiable pod-name node-name (jsonpath, immune aux restart counts).
+          pods_on_nodes() { k3s kubectl -n imgr get pods -o jsonpath="$JP"; }
+          pods_for_app() { k3s kubectl -n imgr get pods -l app=$1 -o jsonpath="$JP"; }
 
           count_per_node() {
             for n in $NODES; do
-              c=$(k3s kubectl -n imgr get pods \
-                    --field-selector=status.phase=Running \
-                    --no-headers -o wide 2>/dev/null \
-                  | awk -v node=$n '$7==node' | wc -l)
+              c=$(pods_on_nodes | awk -v node=$n '$2==node' | wc -l)
               echo "$c $n"
             done
           }
@@ -52,6 +54,21 @@
           }
 
           extreme_node() { count_per_node | sort -n | $1 -1 | awk '{print $2}'; }
+
+          # Wait for replicas==2 ready (la condition Available est trop laxiste:
+          # elle est True des qu'1 pod est ready, ce qui retourne avant que le
+          # nouveau pod ait ete cree apres delete).
+          wait_for_replicas() {
+            local app=$1 deadline=$(($(date +%s) + {{ rollout_timeout }}))
+            while [ $(date +%s) -lt $deadline ]; do
+              ready=$(k3s kubectl -n imgr get deploy $app \
+                      -o jsonpath='{.status.readyReplicas}' 2>/dev/null)
+              [ "$ready" = "2" ] && return 0
+              sleep 2
+            done
+            echo "  WARNING: $app readyReplicas != 2 after timeout"
+            return 1
+          }
 
           max_iter=10
           i=0
@@ -67,19 +84,12 @@
             under=$(extreme_node head)
             moved=false
             for app in backend worker frontend; do
-              pod_over=$(k3s kubectl -n imgr get pods -l app=$app \
-                         --field-selector=status.phase=Running \
-                         -o wide --no-headers \
-                         | awk -v o=$over '$7==o {print $1; exit}')
-              pod_under=$(k3s kubectl -n imgr get pods -l app=$app \
-                          --field-selector=status.phase=Running \
-                          -o wide --no-headers \
-                          | awk -v u=$under '$7==u {print $1; exit}')
+              pod_over=$(pods_for_app $app | awk -v o=$over '$2==o {print $1; exit}')
+              pod_under=$(pods_for_app $app | awk -v u=$under '$2==u {print $1; exit}')
               if [ -n "$pod_over" ] && [ -z "$pod_under" ]; then
                 echo "  Migrate $app: $over -> $under (delete $pod_over)"
                 k3s kubectl -n imgr delete pod "$pod_over" --grace-period=15
-                k3s kubectl -n imgr wait --for=condition=Available \
-                  --timeout={{ rollout_timeout }}s deployment/$app
+                wait_for_replicas $app
                 moved=true
                 sleep 3
                 break
@@ -116,7 +126,9 @@
       ansible.builtin.shell:
         cmd: |
           set -o pipefail
-          k3s kubectl -n imgr get pods -o wide --no-headers | awk '{print $7}' | sort | uniq -c
+          k3s kubectl -n imgr get pods \
+            -o jsonpath='{range .items[?(@.status.phase=="Running")]}{.spec.nodeName}{"\n"}{end}' \
+            | sort | uniq -c
         executable: /bin/bash
       register: distribution
       changed_when: false

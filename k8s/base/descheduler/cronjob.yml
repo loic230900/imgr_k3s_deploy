@@ -1,0 +1,56 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: descheduler
+  namespace: kube-system
+  labels:
+    app: descheduler
+spec:
+  # Toutes les 30 min: compromis reactivite (post-deploy/panne) vs charge.
+  schedule: "*/30 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            app: descheduler
+        spec:
+          serviceAccountName: descheduler
+          priorityClassName: system-cluster-critical
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: descheduler
+              image: registry.k8s.io/descheduler/descheduler:v0.31.0
+              command:
+                - /bin/descheduler
+                - --policy-config-file=/policy/policy.yaml
+                - --v=3
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 128Mi
+                limits:
+                  cpu: 500m
+                  memory: 256Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop:
+                    - ALL
+              volumeMounts:
+                - name: policy
+                  mountPath: /policy
+                  readOnly: true
+          volumes:
+            - name: policy
+              configMap:
+                name: descheduler-policy

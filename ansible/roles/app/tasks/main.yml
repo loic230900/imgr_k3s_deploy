@@ -78,8 +78,13 @@
   changed_when: false
   no_log: true
 
-- name: Apply all k8s manifests via kustomize overlay
-  command: k3s kubectl apply -k /home/ubuntu/k8s/overlays/prod/
+# --server-side requis: client-side apply merge les 2 topologySpreadConstraints
+# par topologyKey seul, ce qui ecrase la soft global ScheduleAnyway. SSA respecte
+# les listMapKeys (topologyKey, whenUnsatisfiable) et preserve les 2 contraintes.
+- name: Apply all k8s manifests via kustomize overlay (server-side)
+  command: >-
+    k3s kubectl apply --server-side --force-conflicts
+    -k /home/ubuntu/k8s/overlays/prod/
   run_once: true
   changed_when: false
 
@@ -97,6 +102,21 @@
   command: k3s kubectl -n imgr rollout status deployment/frontend --timeout=120s
   changed_when: false
   run_once: true
+
+# HPA scale-with-N: backend max=N+1, worker max=N+2 ou N est la taille du cluster.
+# Permet a l'ajout d'une VM d'etendre automatiquement la capacite, et a la
+# decommission de la reduire (evite que HPA scale au-dela de la capacite restante).
+- name: Patch HPA maxReplicas based on cluster size
+  ansible.builtin.shell:
+    cmd: |
+      N={{ groups['k3s'] | length }}
+      k3s kubectl -n imgr patch hpa backend-hpa --type=merge \
+        -p "{\"spec\":{\"maxReplicas\":$((N+1))}}"
+      k3s kubectl -n imgr patch hpa worker-hpa --type=merge \
+        -p "{\"spec\":{\"maxReplicas\":$((N+2))}}"
+    executable: /bin/bash
+  run_once: true
+  changed_when: true
 
 - name: Clean up secret file from disk
   file:

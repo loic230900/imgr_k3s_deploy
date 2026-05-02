@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: descheduler-policy
+  namespace: kube-system
+  labels:
+    app: descheduler
+data:
+  # Policy v1alpha2: lister ScheduleAnyway dans constraints active la prise en
+  # compte de notre soft global imgr (sans elle, le descheduler ne verrait que
+  # DoNotSchedule per-service, deja respectee par construction).
+  policy.yaml: |
+    apiVersion: descheduler/v1alpha2
+    kind: DeschedulerPolicy
+    profiles:
+      - name: imgr-balance
+        plugins:
+          balance:
+            enabled:
+              - RemovePodsViolatingTopologySpreadConstraint
+        pluginConfig:
+          - name: RemovePodsViolatingTopologySpreadConstraint
+            args:
+              constraints:
+                - DoNotSchedule
+                - ScheduleAnyway
+              namespaces:
+                include:
+                  - imgr

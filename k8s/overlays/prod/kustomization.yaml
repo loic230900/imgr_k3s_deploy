@@ -3,6 +3,7 @@ kind: Kustomization
 
 resources:
   - ../../base
+  - ../../base/descheduler
 
 images:
   - name: registry.app.unistra.fr/waltzing/projet-cloud-virt/backend

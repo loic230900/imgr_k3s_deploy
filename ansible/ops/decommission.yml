@@ -65,3 +65,22 @@
   gather_facts: true
   roles:
     - keepalived
+
+# Reduit HPA maxReplicas a la nouvelle taille du cluster (N-1) pour eviter
+# que HPA scale au-dela de la capacite restante.
+- name: Patch HPA maxReplicas to match reduced cluster size
+  hosts: "k3s:!{{ target | default('__no_target__') }}"
+  become: true
+  gather_facts: false
+  run_once: true
+  tasks:
+    - name: Patch HPA backend and worker maxReplicas
+      ansible.builtin.shell:
+        cmd: |
+          N={{ groups['k3s'] | difference([target]) | length }}
+          k3s kubectl -n imgr patch hpa backend-hpa --type=merge \
+            -p "{\"spec\":{\"maxReplicas\":$((N+1))}}"
+          k3s kubectl -n imgr patch hpa worker-hpa --type=merge \
+            -p "{\"spec\":{\"maxReplicas\":$((N+2))}}"
+        executable: /bin/bash
+      changed_when: true

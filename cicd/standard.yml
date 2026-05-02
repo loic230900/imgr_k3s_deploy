@@ -188,7 +188,7 @@ deploy:
       # Apply manifests and wait for rollout
       DEPLOY_CMD='set -e
         export KUBECONFIG=/home/ubuntu/.kube/config
-        kubectl apply -f -
+        kubectl apply --server-side --force-conflicts -f -
         kubectl -n imgr rollout status deployment/backend  --timeout=120s
         kubectl -n imgr rollout status deployment/worker   --timeout=120s
         kubectl -n imgr rollout status deployment/frontend --timeout=120s'
@@ -206,15 +206,18 @@ deploy:
 
       DIST_CMD='set -e
         export KUBECONFIG=/home/ubuntu/.kube/config
+        # jsonpath fiable: awk $7 casse sur les pods avec restart count multi-mots.
+        DIST=$(kubectl -n imgr get pods \
+                 -o jsonpath="{range .items[?(@.status.phase==\"Running\")]}{.spec.nodeName}{\"\n\"}{end}" \
+               | sort | uniq -c)
         echo "Pod distribution after deploy:"
-        kubectl -n imgr get pods --field-selector=status.phase=Running -o wide --no-headers \
-          | awk "{print \$7}" | sort | uniq -c
-        SKEW=$(kubectl -n imgr get pods --field-selector=status.phase=Running --no-headers -o wide \
-               | awk "{print \$7}" | sort | uniq -c | awk "{print \$1}" | sort -n \
+        echo "$DIST"
+        SKEW=$(echo "$DIST" | awk "{print \$1}" | sort -n \
                | awk "NR==1{min=\$1} END{print \$1-min}")
         if [ "$SKEW" -gt 1 ]; then
-          echo "INFO: skew=$SKEW > 1. Per-service constraint still enforced (continuity OK)."
-          echo "      To rebalance toward 2-2-2: trigger ops pipeline with rebalance job."
+          echo "INFO: skew=$SKEW > 1. Per-service constraint enforced (continuity OK)."
+          echo "      Descheduler (kube-system CronJob) will rebalance within 30 min."
+          echo "      For immediate convergence: trigger ops pipeline with rebalance job."
         else
           echo "Distribution balanced (skew=$SKEW)."
         fi'
