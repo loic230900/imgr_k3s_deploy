@@ -29,22 +29,18 @@ spec:
           operator: Exists
           effect: NoExecute
           tolerationSeconds: 60
-      affinity:
-        podAntiAffinity:
-          preferredDuringSchedulingIgnoredDuringExecution:
-            - weight: 100
-              podAffinityTerm:
-                labelSelector:
-                  matchLabels:
-                    app: backend
-                topologyKey: kubernetes.io/hostname
       topologySpreadConstraints:
+        # Jamais 2 pods backend sur le meme node en baseline; en scaling >3
+        # tolere 2-1-1 (maxSkew=1). nodeTaintsPolicy: Honor exclut les nodes
+        # cordoned/NotReady pour ne pas bloquer le rolling update pendant
+        # un drain et pour reschedule proprement sur les VMs survivantes.
         - maxSkew: 1
           topologyKey: kubernetes.io/hostname
-          whenUnsatisfiable: ScheduleAnyway
+          whenUnsatisfiable: DoNotSchedule
+          nodeTaintsPolicy: Honor
           labelSelector:
             matchLabels:
-              app.kubernetes.io/part-of: imgr
+              app: backend
       imagePullSecrets:
         - name: registry-creds
       securityContext:
