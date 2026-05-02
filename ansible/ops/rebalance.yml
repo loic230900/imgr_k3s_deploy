@@ -45,8 +45,15 @@
               k3s kubectl -n imgr rollout status deployment/$app \
                 --timeout={{ rollout_timeout }}s
             done
-            counts=$(k3s kubectl -n imgr get pods --no-headers -o wide \
-                     | awk '{print $7}' | sort | uniq -c | awk '{print $1}' | sort -n)
+            # Stabilisation: rollout status peut retourner success alors qu il
+            # reste des anciens pods en Terminating (qui restent en phase
+            # Running tant que la suppression n est pas effective).
+            sleep 5
+            counts=$(k3s kubectl -n imgr get pods \
+                       --field-selector=status.phase=Running \
+                       --no-headers -o wide \
+                     | awk '{print $7}' | sort | uniq -c | awk '{print $1}' \
+                     | sort -n)
             max_count=$(echo "$counts" | tail -1)
             min_count=$(echo "$counts" | head -1)
             skew=$((max_count - min_count))
