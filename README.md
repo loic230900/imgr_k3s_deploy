@@ -18,6 +18,18 @@ The repo covers the full delivery chain for a containerized web app:
 | **CI/CD** | GitLab CI pipeline with linting, build, and deploy stages |
 | **Security** | Trivy container scanning, ansible-lint, yamllint, pre-commit hooks |
 
+## A note on the CI/CD pipeline
+
+The `.gitlab-ci.yml` pipeline in this repository was designed to run on a **GitLab** instance, not GitHub. The pipeline references private runners, a GitLab container registry, and deploy targets that were configured for the original `git.unistra.fr` project where this work was developed and graded.
+
+**On GitHub, the pipeline will not execute** — GitHub Actions ignores `.gitlab-ci.yml`, and even if it didn't, the runners, registry, and secrets referenced are not reachable from here. The file is kept in the repo as a reference: it documents the build, lint, security-scan, and deploy stages that ran during the project.
+
+To see the pipeline in action you would need to:
+- Re-host the repo on a GitLab instance
+- Register a runner with the required tags
+- Configure the GitLab CI/CD variables for the container registry and target cluster
+
+The runbook in `GUIDE_EXPLOITATION_MAINTENANCE.md` describes the deploy targets in more detail.
 ## Repo layout
 
 ```
